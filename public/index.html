@@ -188,7 +188,8 @@ function khqr(id, amt, kind) {
   return `${hdr("ទូទាត់ KHQR")}<div class="pad" style="padding-bottom:130px"><div class="qr"><img src="/brand/icon-64.png" width="48" height="48" alt="Zen" style="border-radius:12px;margin-bottom:4px"><b style="color:#B3001B;font-size:20px">KHQR</b>
     <div class="ph">${state.pay_img ? `<img src="${state.pay_img}" alt="KHQR">` : ic("qr", 150, "#fff", 1.5)}</div><b>ZEN PREMIUM</b><span style="font-size:26px;font-weight:700">${money(amt)}</span></div>
    <div class="row" style="justify-content:center;gap:8px;background:var(--surface-2);padding:10px 14px;border-radius:16px">${ic("clock", 18, "#FFC24D")}<b>QR ផុតកំណត់ក្នុង <span id="cd">05:00</span></b></div>
-   ${CONFIG.API_BASE ? "" : `<div class="demo">DEMO — មិនទាន់ភ្ជាប់ API ទូទាត់ពិតទេ។ ចុច «ខ្ញុំបានបង់ហើយ» ដើម្បីសាកល្បង flow។</div>`}
+   ${state.pay_deeplink ? `<a class="mb2" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="${state.pay_deeplink}">OPEN ABA Mobile</a>` : ""}
+   ${!state.pay_img ? `<div class="demo">មិនមានរូប QR — ពិនិត្យ ABA_API_KEY / ABA_MERCHANT_ID លើ Render</div>` : ""}
    <div class="small muted" style="text-align:center">ស្កេនជាមួយ ABA · ACLEDA · Wing ឬកម្មវិធីធនាគារណាមួយ។ ប្រព័ន្ធនឹងផ្ទៀងផ្ទាត់ដោយស្វ័យប្រវត្តិ ហើយផ្ញើគណនីមកក្នុង Telegram។</div></div>
    ${bar("ខ្ញុំបានបង់ហើយ · ពិនិត្យ", "verify()")}`;
 }
@@ -204,7 +205,10 @@ async function pay(id) {
     if (j.paid) { const me = await api.me(); if (me.balance != null) { state.balance = me.balance; ls.set("kz_bal", state.balance); } return deliver(order, j); }
     toast("មិនអាចបង់ពីកាបូប"); return;
   }
-  const r = await api.createPayment(order); state.cur = { order, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300; go("#/pay");
+  const r = await api.createPayment(order);
+  if (r.error || r.message) { toast(r.message || r.error || "QR បរាជ័យ"); return; }
+  state.cur = { order, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300;
+  state.pay_deeplink = r.deeplink || ""; go("#/pay");
 }
 async function verify() {
   const c = state.cur; if (!c) return go("#/"); const r = await api.checkPayment(c.pid);
@@ -236,7 +240,12 @@ function wallet() {
    <button class="mb" onclick="topup()">${ic("qr", 20, "#fff")}&nbsp; បញ្ចូល $${state.topup} តាម KHQR</button>
    <h3>ប្រវត្តិ</h3>${state.orders.slice(0, 5).map(o => `<div class="card row" style="padding:14px"><div class="grow col"><b>${CATALOG.find(x => x.id === o.product).name} ${o.plan}</b><span class="cap muted">#${o.id}</span></div><b>-${money(o.amount)}</b></div>`).join("") || `<span class="muted small">មិនទាន់មានប្រវត្តិ</span>`}</div>${tabs("wallet")}`;
 }
-async function topup() { const r = await api.createPayment({ topup: state.topup, amount: state.topup }); state.cur = { topup: state.topup, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300; go("#/topay"); }
+async function topup() {
+  const r = await api.createPayment({ topup: state.topup, amount: state.topup });
+  if (r.error || r.message) { toast(r.message || r.error || "QR បរាជ័យ"); return; }
+  state.cur = { topup: state.topup, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300;
+  state.pay_deeplink = r.deeplink || ""; go("#/topay");
+}
 async function verifyTop() { const r = await api.checkPayment(state.cur.pid); if (r.paid) { state.balance = +(state.balance + state.cur.topup).toFixed(2); ls.set("kz_bal", state.balance); toast("បញ្ចូលលុយជោគជ័យ ✓"); haptic("heavy"); go("#/wallet"); } else toast("មិនទាន់ទទួលបានការបង់ប្រាក់"); }
 function help() {
   const faq = [["ទទួលបានគណនីយូរប៉ុណ្ណា?", "ភាគច្រើនភ្លាមៗ បន្ទាប់ពីការទូទាត់ត្រូវបានផ្ទៀងផ្ទាត់។"], ["គណនីមានបញ្ហា តើធ្វើដូចម្តេច?", "ទាក់ទងជំនួយក្នុងរយៈពេលធានា ដើម្បីដូរគណនីថ្មី។"], ["បង់ហើយ តែមិនទាន់ទទួលបាន?", "ចុច «ពិនិត្យ» ម្តងទៀត ឬផ្ញើលេខបញ្ជាទិញមកជំនួយ។"]];

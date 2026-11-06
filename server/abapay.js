@@ -1,131 +1,174 @@
 /**
- * ABA PayWay via Khmer System API (optional).
- * Env:
- *   ABA_API_KEY or KHMER_SYSTEM_API_KEY  (profile/API key)
- *   ABA_MACHINE_ID or KHMER_SYSTEM_MACHINE_ID
- *   ABA_API_BASE (default https://khmer-system.com)
+ * ABA PayWay real KHQR — same API as Porpor / Kai-
+ * POST https://khmer-system.com/aba-api/generate-qr
+ * body: { api_key, merchant_id, username, amount }
+ *
+ * Env (Render):
+ *   ABA_API_KEY
+ *   ABA_MERCHANT_ID
+ * Optional: KHMER_SYSTEM_URL, QR_EXPIRE_SEC
  */
-const BASE = (process.env.ABA_API_BASE || process.env.KHMER_SYSTEM_URL || "https://khmer-system.com").replace(/\/$/, "");
+const BASE_URL = (process.env.KHMER_SYSTEM_URL || "https://khmer-system.com").replace(/\/$/, "");
+const CREATE_URL = `${BASE_URL}/aba-api/generate-qr`;
+const CHECK_URL = `${BASE_URL}/aba-api/check-payment`;
 
-function key() {
-  return (
-    process.env.ABA_API_KEY ||
-    process.env.KHMER_SYSTEM_API_KEY ||
-    process.env.KHMER_SYSTEM_PROFILE_KEY ||
-    ""
-  ).trim();
+function clean(v) {
+  return String(v || "")
+    .replace(/[\s\u200b\ufeff]+/g, "")
+    .replace(/^["'`]+|["'`]+$/g, "");
 }
-function machineId() {
-  return (process.env.ABA_MACHINE_ID || process.env.KHMER_SYSTEM_MACHINE_ID || "").trim();
+
+function apiKey() {
+  return clean(process.env.ABA_API_KEY || process.env.KHMER_SYSTEM_API_KEY || "");
 }
+function merchantId() {
+  return clean(process.env.ABA_MERCHANT_ID || process.env.KHMER_SYSTEM_MERCHANT_ID || "");
+}
+
+const HEADERS = {
+  "Content-Type": "application/json",
+  Accept: "application/json",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+};
 
 export function isAbaReady() {
-  return Boolean(key());
+  return Boolean(apiKey() && merchantId());
 }
 
-async function post(path, body) {
-  const headers = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    Authorization: `Bearer ${key()}`,
-    "X-API-Key": key(),
-  };
-  if (machineId()) headers["X-Machine-Id"] = machineId();
-  const r = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(25000),
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const err = new Error(data?.error || data?.message || `HTTP ${r.status}`);
-    err.data = data;
-    err.status = r.status;
-    throw err;
+function makeUsername(raw) {
+  const u = String(raw || "")
+    .replace(/^@/, "")
+    .replace(/[^A-Za-z0-9_]/g, "")
+    .slice(0, 32);
+  return u || "customer";
+}
+
+/**
+ * Create real KHQR.
+ * @returns {{ success, qrImageUrl, providerRef, deeplink, pay_url, error? }}
+ */
+export async function createQr({ amount, billId, description, username }) {
+  if (!isAbaReady()) {
+    return { success: false, error: "ABA_API_KEY or ABA_MERCHANT_ID not set", simulation: true };
   }
-  return data;
-}
-
-/** Create KHQR / ABA payment. Returns { providerRef, qrImageUrl, deeplink, amount } */
-export async function createQr({ amount, billId, description }) {
-  if (!isAbaReady()) throw new Error("aba_not_configured");
-  const amt = Math.round(Number(amount) * 100) / 100;
+  const QR_EXPIRE_SEC = Math.max(600, Number(process.env.QR_EXPIRE_SEC || 3600) || 3600);
   const payload = {
-    amount: amt,
-    bill_id: String(billId || "").slice(0, 64),
-    description: String(description || "Zen Premium").slice(0, 120),
+    api_key: apiKey(),
+    merchant_id: merchantId(),
+    username: makeUsername(username || billId || "zen"),
+    amount: Math.round(Number(amount) * 100) / 100,
+    expires_in: QR_EXPIRE_SEC,
+    expire_in: QR_EXPIRE_SEC,
+    ttl: QR_EXPIRE_SEC,
   };
-  if (machineId()) payload.machine_id = machineId();
 
-  // Try common Khmer-system style endpoints
-  const paths = ["/api/v1/qr/create", "/api/qr/create", "/api/aba/qr", "/v1/payment/qr"];
-  let lastErr;
-  for (const p of paths) {
+  let lastErr = "unknown";
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const data = await post(p, payload);
-      const qr =
-        data.qr_image_url ||
-        data.qrImageUrl ||
-        data.qr ||
-        data.image ||
-        data.data?.qr_image_url ||
-        data.data?.qr ||
-        "";
-      const ref =
-        data.transaction_id ||
-        data.tran_id ||
-        data.id ||
-        data.ref ||
-        data.data?.transaction_id ||
-        billId;
-      const deeplink =
-        data.aba_deeplink ||
-        data.deeplink ||
-        data.deep_link ||
-        data.data?.aba_deeplink ||
-        "";
-      return {
-        providerRef: String(ref),
-        qrImageUrl: typeof qr === "string" && qr.startsWith("data:") ? qr : qr,
-        deeplink: deeplink || "",
-        amount: amt,
-        raw: data,
-      };
+      const r = await fetch(CREATE_URL, {
+        method: "POST",
+        headers: HEADERS,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(25000),
+      });
+      const text = await r.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        lastErr = `HTTP ${r.status} non-JSON: ${text.slice(0, 180)}`;
+        if (attempt < 2) {
+          await new Promise((x) => setTimeout(x, 800));
+          continue;
+        }
+        return { success: false, error: lastErr };
+      }
+
+      if (data.ok && data.payment_id) {
+        let deeplink =
+          data.abapay_deeplink || data.aba_deeplink || data.deeplink || data.pay_url || "";
+        const qr_string = data.qr_string || data.qr_data || data.qr || "";
+        if (!deeplink || !String(deeplink).toLowerCase().startsWith("abamobilebank://")) {
+          if (qr_string) {
+            deeplink = `abamobilebank://ababank.com?type=payway&qrcode=${encodeURIComponent(qr_string)}`;
+          }
+        }
+        const qrImageUrl = data.card_image || data.qr_image || "";
+        return {
+          success: true,
+          providerRef: String(data.payment_id),
+          qrImageUrl,
+          deeplink,
+          pay_url: data.pay_url || data.checkout_url || "",
+          amount: payload.amount,
+          raw: { ...data, card_image: undefined, qr_image: undefined },
+        };
+      }
+      lastErr = data.message || data.error || "Failed to create QR";
+      // invalid username style — retry with simpler username
+      if (String(lastErr).toLowerCase().includes("username") && attempt < 2) {
+        payload.username = "customer" + Date.now().toString(36).slice(-4);
+        await new Promise((x) => setTimeout(x, 400));
+        continue;
+      }
+      if (attempt < 2) {
+        await new Promise((x) => setTimeout(x, 800));
+        continue;
+      }
+      return { success: false, error: lastErr, raw: data };
     } catch (e) {
-      lastErr = e;
+      lastErr = e.message || String(e);
+      if (attempt < 2) {
+        await new Promise((x) => setTimeout(x, 800));
+        continue;
+      }
+      return { success: false, error: lastErr };
     }
   }
-  throw lastErr || new Error("qr_create_failed");
+  return { success: false, error: lastErr };
 }
 
-/** Check if payment is paid at provider */
+/** Check payment — only explicit paid status counts */
 export async function checkPaid(providerRef) {
   if (!isAbaReady() || !providerRef) return { paid: false };
-  const paths = [
-    ["/api/v1/qr/status", { transaction_id: providerRef }],
-    ["/api/qr/status", { tran_id: providerRef, transaction_id: providerRef }],
-    ["/api/aba/status", { id: providerRef }],
-  ];
-  for (const [p, body] of paths) {
-    try {
-      const data = await post(p, body);
-      const st = String(
-        data.status || data.payment_status || data.data?.status || "",
-      ).toLowerCase();
-      const paid =
-        data.paid === true ||
-        st === "paid" ||
-        st === "success" ||
-        st === "completed" ||
-        st === "0" ||
-        data.data?.paid === true;
-      if (paid) return { paid: true, raw: data };
-      if (data.ok === false && data.error) continue;
-      return { paid: false, raw: data };
-    } catch {
-      /* try next */
-    }
+  const payload = {
+    api_key: apiKey(),
+    merchant_id: merchantId(),
+    payment_id: String(providerRef),
+  };
+  try {
+    const r = await fetch(CHECK_URL, {
+      method: "POST",
+      headers: HEADERS,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await r.json().catch(() => ({}));
+    const status = String(
+      data.status || data.payment_status || data.state || data.tran_status || "",
+    )
+      .toUpperCase()
+      .trim();
+    const paidStatuses = new Set(["PAID", "SUCCESS", "COMPLETED", "COMPLETE", "DONE", "SETTLED"]);
+    const unpaidStatuses = new Set([
+      "PENDING",
+      "UNPAID",
+      "WAITING",
+      "CREATED",
+      "EXPIRED",
+      "FAILED",
+      "CANCELLED",
+      "CANCELED",
+      "TIMEOUT",
+      "OPEN",
+    ]);
+    let paid = false;
+    if (data.paid === true || String(data.paid).toLowerCase() === "true") paid = true;
+    if (paidStatuses.has(status)) paid = true;
+    if (unpaidStatuses.has(status)) paid = false;
+    return { paid, status, raw: data };
+  } catch (e) {
+    return { paid: false, error: e.message };
   }
-  return { paid: false };
 }

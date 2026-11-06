@@ -153,15 +153,20 @@ app.post("/api/premium/pay", async (req, res) => {
       const amount = Number(order.amount || order.topup);
       let providerRef = "", qrImageUrl = s.khqrImageUrl || "", deeplink = "";
       if (abapay.isAbaReady()) {
-        try {
-          const billId = "TP" + Date.now().toString(36).toUpperCase();
-          const qr = await abapay.createQr({ amount, billId, description: "Zen Premium Topup" });
-          providerRef = qr.providerRef;
-          qrImageUrl = qr.qrImageUrl || qrImageUrl;
-          deeplink = qr.deeplink || "";
-        } catch (e) {
-          console.warn("[aba topup qr]", e.message);
+        const billId = "TP" + Date.now().toString(36).toUpperCase();
+        const qr = await abapay.createQr({
+          amount,
+          billId,
+          description: "Zen Premium Topup",
+          username: uname || uid,
+        });
+        if (!qr.success) {
+          console.warn("[aba topup qr]", qr.error);
+          return res.status(502).json({ error: "qr_failed", message: qr.error || "Cannot create QR" });
         }
+        providerRef = qr.providerRef;
+        qrImageUrl = qr.qrImageUrl || "";
+        deeplink = qr.deeplink || "";
       }
       const pay = store.createPayment({
         uid, uname, kind: "topup", amount, providerRef, qrImageUrl, deeplink,
@@ -190,19 +195,20 @@ app.post("/api/premium/pay", async (req, res) => {
     // KHQR order — auto QR if ABA keys set, else static image + admin approve
     let providerRef = "", qrImageUrl = s.khqrImageUrl || "", deeplink = "";
     if (abapay.isAbaReady()) {
-      try {
-        const billId = "AP" + Date.now().toString(36).toUpperCase();
-        const qr = await abapay.createQr({
-          amount: Number(order.amount),
-          billId,
-          description: `Zen Premium ${order.product || ""} ${order.plan || ""}`.trim(),
-        });
-        providerRef = qr.providerRef;
-        qrImageUrl = qr.qrImageUrl || qrImageUrl;
-        deeplink = qr.deeplink || "";
-      } catch (e) {
-        console.warn("[aba order qr]", e.message);
+      const billId = "ZP" + Date.now().toString(36).toUpperCase();
+      const qr = await abapay.createQr({
+        amount: Number(order.amount),
+        billId,
+        description: `Zen Premium ${order.product || ""} ${order.plan || ""}`.trim(),
+        username: uname || uid,
+      });
+      if (!qr.success) {
+        console.warn("[aba order qr]", qr.error);
+        return res.status(502).json({ error: "qr_failed", message: qr.error || "Cannot create QR" });
       }
+      providerRef = qr.providerRef;
+      qrImageUrl = qr.qrImageUrl || "";
+      deeplink = qr.deeplink || "";
     }
     const pay = store.createPayment({
       uid, uname, kind: "order",
@@ -268,6 +274,19 @@ app.get("/api/premium/me", (req, res) => {
 });
 
 app.post("/telegram/webhook", express.json(), webhookMiddleware());
+
+app.get("/api/premium/aba-diag", async (_req, res) => {
+  const ready = abapay.isAbaReady();
+  if (!ready) return res.json({ ready: false, error: "Set ABA_API_KEY and ABA_MERCHANT_ID" });
+  const qr = await abapay.createQr({ amount: 0.01, billId: "diag", username: "diag_test" });
+  res.json({
+    ready: true,
+    ok: !!qr.success,
+    error: qr.error || null,
+    hasImage: Boolean(qr.qrImageUrl),
+    payment_id: qr.providerRef || null,
+  });
+});
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, name: "Zen Premium", aba: abapay.isAbaReady() }));
 
