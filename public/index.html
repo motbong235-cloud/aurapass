@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>AuraPass</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0F1A;--surface:#141A2B;--surface-2:#1C2540;--ink:#F2F5FF;--muted:#8E9ABB;--line:#26304D;--primary:#7C5CFF;--primary-2:#3B82F6;--accent:#FFC24D;--ok:#2DD4A0;--danger:#FF6B81;--brand:linear-gradient(135deg,#7C5CFF,#3B82F6);--font:"Kantumruy Pro",system-ui,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+#app{max-width:480px;margin:0 auto;min-height:100dvh;position:relative;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+.hdr{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
+.back{width:36px;height:36px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center}
+h1,h2,h3{margin:0}h1{font-size:26px;line-height:1.3}h2{font-size:20px}h3{font-size:16px}
+.muted{color:var(--muted)}.small{font-size:12px}.cap{font-size:11px}
+.pad{padding:4px 16px 24px;display:flex;flex-direction:column;gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px}
+.row{display:flex;align-items:center;gap:12px}.grow{flex:1;min-width:0}.col{display:flex;flex-direction:column}
+.avatar{width:42px;height:42px;border-radius:50%;background:var(--brand);display:grid;place-items:center;font-weight:700}
+.chip{padding:8px 16px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;white-space:nowrap}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.bal{display:flex;align-items:center;gap:6px;background:var(--surface-2);padding:8px 12px;border-radius:999px;font-weight:600}
+.search{display:flex;gap:10px;align-items:center;padding:12px 16px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--ink);font:inherit}
+.banner{position:relative;overflow:hidden;border-radius:26px;padding:22px;background:var(--brand)}
+.banner:after{content:"";position:absolute;right:-50px;top:-50px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.14)}
+.kick{display:inline-block;background:var(--accent);color:#1A1300;font-size:11px;font-weight:600;padding:2px 10px;border-radius:999px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pc{min-width:0;width:100%;padding:14px;display:flex;flex-direction:column;gap:10px;text-align:left}
+.pc.off{opacity:.55}
+.logo{display:grid;place-items:center;color:#fff;font-weight:700}
+.stock{white-space:nowrap;display:flex;align-items:center;gap:4px;background:var(--surface-2);padding:3px 8px;border-radius:999px;font-size:11px;color:var(--ok)}
+.stock i{width:6px;height:6px;border-radius:50%;background:currentColor}.stock.out{color:var(--danger)}
+.go{width:30px;height:30px;border-radius:50%;background:var(--brand);display:grid;place-items:center}
+.price{color:#9B84FF;font-weight:700;font-size:16px}
+.sel{padding:16px;border-radius:18px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;gap:12px;width:100%;text-align:left}
+.sel.on{background:var(--surface-2);border:2px solid var(--primary);padding:15px}
+.radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);flex:none}.sel.on .radio{border-color:var(--primary);background:var(--primary);box-shadow:inset 0 0 0 4px var(--surface-2)}
+.save{background:var(--accent);color:#1A1300;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px}
+.seg{display:flex;background:var(--surface-2);padding:4px;border-radius:16px;gap:4px}.seg button{flex:1;padding:10px 0;border-radius:12px;font-size:12px;color:var(--muted)}.seg button.on{background:var(--surface);color:#9B84FF}
+.ico{width:44px;height:44px;border-radius:14px;background:var(--surface-2);display:grid;place-items:center;flex:none}
+.bar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--bg);padding:12px 16px calc(14px + env(safe-area-inset-bottom));z-index:20;display:flex;flex-direction:column;gap:8px}
+.mb{background:var(--brand);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:16px;width:100%}
+.mb[disabled]{opacity:.5}
+.mb2{background:var(--surface-2);color:#9B84FF;font-weight:700;padding:15px;border-radius:16px;width:100%}
+.tabs{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 8px calc(14px + env(safe-area-inset-bottom));z-index:20}
+.tabs a{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);text-decoration:none;width:90px}.tabs a.on{color:#9B84FF}
+.qr{background:#fff;color:#0B0F1A;border-radius:28px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.qr img,.qr .ph{width:220px;height:220px;border-radius:12px;background:#0B0F1A;display:grid;place-items:center}
+.field{display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:14px;padding:12px 14px}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--line);padding:10px 16px;border-radius:14px;z-index:99;font-size:13px}
+.demo{background:rgba(255,194,77,.12);border:1px dashed var(--accent);color:var(--accent);border-radius:14px;padding:8px 12px;font-size:12px}
+svg{display:block}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ============ CONFIG ============ */
+const CONFIG = {
+  STORE: "AuraPass Store",
+  API_BASE: "",            // empty = same origin (production on Render)
+  SUPPORT_URL: "https://t.me/kairozen_support",
+  CURRENCY: "$",
+};
+/* Catalog — in production load from `${API_BASE}/api/premium/catalog` (same shape). */
+let CATS = ["ទាំងអស់","Video Editing","Music","Streaming","AI","Design"];
+let CATALOG = [
+  {id:"capcut", name:"CapCut Pro", letter:"C", c:["#2B2F3A","#000"], cat:"Video Editing", tag:"កាត់តវីដេអូ គ្មាន Watermark · Effect Premium", rating:4.9, sold:"1.2K", stock:true,
+   feat:["ទទួលអ៊ីមែល + ពាក្យសម្ងាត់ភ្លាមៗក្នុង Telegram","ធានាគណនីពេញរយៈពេល · ដូរថ្មីបើមានបញ្ហា","Export 4K · Effect · Template Premium","ជំនួយតាម Telegram ២៤/៧"],
+   plans:[{k:"1 ខែ",p:2.5},{k:"3 ខែ",p:6.5,save:"សន្សំ 13%"},{k:"12 ខែ",p:22,save:"សន្សំ 27%"}], types:["Private (ផ្ទាល់ខ្លួន)","Shared"]},
+  {id:"spotify", name:"Spotify Premium", letter:"S", c:["#1ED760","#14803C"], cat:"Music", tag:"ស្តាប់ភ្លេងគ្មានពាណិជ្ជកម្ម · Offline", rating:4.8, sold:"980", stock:true,
+   feat:["គណនីផ្ទាល់ខ្លួន ឬ Upgrade គណនីអ្នក","គ្មានពាណិជ្ជកម្ម · ទាញយក Offline","ធានាពេញរយៈពេល","ជំនួយ ២៤/៧"],
+   plans:[{k:"1 ខែ",p:3},{k:"3 ខែ",p:8,save:"សន្សំ 11%"},{k:"6 ខែ",p:15,save:"សន្សំ 17%"}], types:["Private (ផ្ទាល់ខ្លួន)","Upgrade គណនីខ្ញុំ"]},
+  {id:"netflix", name:"Netflix", letter:"N", c:["#FF3B3B","#9B0F1A"], cat:"Streaming", tag:"1 Profile · 4K UHD", rating:4.7, sold:"760", stock:true,
+   feat:["1 Profile ផ្ទាល់ខ្លួន + PIN","4K UHD (បើ Plan គាំទ្រ)","ធានាពេញរយៈពេល","ជំនួយ ២៤/៧"],
+   plans:[{k:"1 ខែ",p:4},{k:"3 ខែ",p:11,save:"សន្សំ 8%"}], types:["1 Profile","Full Account"]},
+  {id:"youtube", name:"YouTube Premium", letter:"Y", c:["#FF4D4D","#B30000"], cat:"Streaming", tag:"គ្មានពាណិជ្ជកម្ម · Background Play", rating:4.8, sold:"640", stock:true,
+   feat:["គ្មានពាណិជ្ជកម្ម","Background Play + Download","YouTube Music Premium រួមបញ្ចូល","ជំនួយ ២៤/៧"],
+   plans:[{k:"1 ខែ",p:2.2},{k:"3 ខែ",p:6,save:"សន្សំ 9%"},{k:"12 ខែ",p:20,save:"សន្សំ 24%"}], types:["Upgrade គណនីខ្ញុំ","Private (ផ្ទាល់ខ្លួន)"]},
+  {id:"chatgpt", name:"ChatGPT Plus", letter:"G", c:["#19C39B","#0B7A62"], cat:"AI", tag:"GPT ជំនាន់ថ្មី · លឿនជាងមុន", rating:4.6, sold:"410", stock:true,
+   feat:["Model ជំនាន់ថ្មី · ល្បឿនលឿន","ប្រើក្នុងអ៊ីមែលផ្ទាល់ខ្លួន","ធានាពេញរយៈពេល","ជំនួយ ២៤/៧"],
+   plans:[{k:"1 ខែ",p:8}], types:["Shared","Private (ផ្ទាល់ខ្លួន)"]},
+  {id:"canva", name:"Canva Pro", letter:"Ca", c:["#9B5CFF","#4C2BD1"], cat:"Design", tag:"Template · Brand Kit · Background Remover", rating:4.9, sold:"530", stock:false,
+   feat:["Template + Element Premium","Background Remover","Brand Kit","ជំនួយ ២៤/៧"],
+   plans:[{k:"12 ខែ",p:1.5}], types:["Team Invite"]},
+];
+
+/* ============ helpers ============ */
+const tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData !== undefined ? Telegram.WebApp : null;
+const $ = (s, r = document) => r.querySelector(s);
+const money = n => CONFIG.CURRENCY + Number(n).toFixed(2);
+const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const state = { cat: "ទាំងអស់", q: "", sel: { plan: 0, type: 0 }, balance: ls.get("kz_bal", 5.25), orders: ls.get("kz_orders", []), topup: 5, pay: null };
+const user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || { first_name: "ភ្ញៀវ" };
+const IC = {
+  bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>', wallet:'<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7l2-3h12"/>', list:'<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+  help:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>', back:'<path d="m15 18-6-6 6-6"/>', check:'<path d="m5 12 5 5L20 7"/>', bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>', search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', plus:'<path d="M12 5v14M5 12h14"/>', clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  qr:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14v7h-3"/>', copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>', star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>'
+};
+const ic = (n, s = 20, c = "currentColor", w = 2) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
+const logo = (p, s, r) => `<div class="logo" style="width:${s}px;height:${s}px;border-radius:${r || Math.round(s * .28)}px;background:linear-gradient(135deg,${p.c[0]},${p.c[1]});font-size:${s > 60 ? 26 : 16}px">${p.letter}</div>`;
+const haptic = (t = "light") => { try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(t); } catch (e) {} };
+function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 1800); }
+const go = h => { location.hash = h; };
+const tabs = a => `<nav class="tabs">${[["bag", "ហាង", "#/"], ["wallet", "កាបូប", "#/wallet"], ["list", "ការបញ្ជាទិញ", "#/orders"], ["help", "ជំនួយ", "#/help"]].map(([i, l, h]) => `<a href="${h}" class="${a === i ? "on" : ""}">${ic(i, 22)}<span>${l}</span></a>`).join("")}</nav>`;
+const hdr = (t, back = true) => `<div class="hdr">${back ? `<button class="back" onclick="history.length>1?history.back():go('#/')">${ic("back")}</button>` : ""}<h3 class="grow">${t}</h3></div>`;
+const bar = (label, onclick, sub = "", dis = "") => `<div class="bar">${sub}<button class="mb" ${dis} onclick="${onclick}">${label}</button></div>`;
+
+/* ============ API layer (DEMO fallbacks) ============ */
+const api = {
+  base() { return CONFIG.API_BASE || ""; },
+  uid() { return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || "web"; },
+  uname() { const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; return u ? (u.first_name || u.username || "User") : "Guest"; },
+  async createPayment(order) {
+    const r = await fetch(this.base() + "/api/premium/pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order, uid: this.uid(), uname: this.uname(), initData: tg ? tg.initData : "" }),
+    });
+    return r.json();
+  },
+  async checkPayment(id) {
+    const r = await fetch(this.base() + "/api/premium/pay/" + id);
+    return r.json();
+  },
+  async me() {
+    try {
+      const r = await fetch(this.base() + "/api/premium/me?uid=" + encodeURIComponent(this.uid()));
+      return r.json();
+    } catch { return { balance: state.balance }; }
+  },
+};
+
+/* ============ views ============ */
+function home() {
+  const list = CATALOG.filter(p => (state.cat === "ទាំងអស់" || p.cat === state.cat) && p.name.toLowerCase().includes(state.q.toLowerCase()));
+  return `<div class="hdr"><div class="avatar">${(user.first_name || "K")[0]}</div><div class="grow col"><h3>សួស្តី, ${user.first_name || ""}</h3><span class="cap muted">${CONFIG.STORE}</span></div>
+  <button class="bal" onclick="go('#/wallet')">${ic("wallet", 16, "#FFC24D")}<span>${money(state.balance)}</span>${ic("plus", 14, "#9B84FF", 2.5)}</button></div>
+  <div class="pad">
+   <label class="search">${ic("search", 18, "#8E9ABB")}<input id="q" placeholder="ស្វែងរក CapCut, Spotify…" value="${state.q}" oninput="state.q=this.value;renderGrid()"></label>
+   <div class="banner"><span class="kick">PREMIUM · ថោកជាងទិញផ្ទាល់</span><h1 style="margin:8px 0">គណនី Premium<br>ទទួលបានភ្លាមៗ</h1><div class="small" style="opacity:.85">បង់ KHQR · ធានាគណនី · ជំនួយ ២៤/៧</div></div>
+   <div class="chips">${CATS.map(c => `<button class="chip ${c === state.cat ? "on" : ""}" onclick="state.cat='${c}';render()">${c}</button>`).join("")}</div>
+   <div class="row"><h2 class="grow">ផលិតផលពេញនិយម</h2></div>
+   <div class="grid" id="grid">${gridHtml(list)}</div></div>${tabs("bag")}`;
+}
+const gridHtml = list => list.length ? list.map(p => `<button class="card pc ${p.stock ? "" : "off"}" ${p.stock ? `onclick="state.sel={plan:0,type:0};go('#/p/${p.id}')"` : "disabled"}>
+  <div class="row" style="align-items:flex-start">${logo(p, 52, 16)}<span class="grow"></span><span class="stock ${p.stock ? "" : "out"}"><i></i>${p.stock ? "មានស្តុក" : "អស់ស្តុក"}</span></div>
+  <div class="col"><b>${p.name}</b><span class="small muted">${p.plans[0].k} · ទទួលភ្លាមៗ</span></div>
+  <div class="row"><span class="price grow">ពី ${money(Math.min(...p.plans.map(x => x.p)))}</span><span class="go">${ic("plus", 16, "#fff", 2.5)}</span></div></button>`).join("") : `<div class="muted" style="grid-column:1/3;text-align:center;padding:30px">រកមិនឃើញផលិតផលទេ</div>`;
+function renderGrid() { $("#grid").innerHTML = gridHtml(CATALOG.filter(p => (state.cat === "ទាំងអស់" || p.cat === state.cat) && p.name.toLowerCase().includes(state.q.toLowerCase()))); }
+
+function product(id) {
+  const p = CATALOG.find(x => x.id === id); if (!p) return home();
+  const pl = p.plans[state.sel.plan] || p.plans[0];
+  return `${hdr(p.name)}<div class="pad" style="padding-bottom:140px">
+   <div class="card row" style="padding:20px;gap:16px;background:linear-gradient(135deg,#1C2540,#141A2B)">${logo(p, 84, 24)}<div class="grow col" style="gap:6px"><h2>${p.name}</h2><span class="small muted">${p.tag}</span>
+     <div class="row" style="gap:8px"><span class="stock" style="color:#FFC24D">${ic("star", 12, "#FFC24D")} ${p.rating}</span><span class="stock" style="color:#F2F5FF">${ic("bolt", 12, "#FFC24D")} លក់ ${p.sold}</span></div></div></div>
+   <div class="col" style="gap:10px"><h3>ជ្រើសរយៈពេល</h3>${p.plans.map((x, i) => `<button class="sel ${i === state.sel.plan ? "on" : ""}" onclick="state.sel.plan=${i};render()"><span class="radio"></span><b class="grow">${x.k}</b>${x.save ? `<span class="save">${x.save}</span>` : ""}<span class="price" style="font-size:16px">${money(x.p)}</span></button>`).join("")}</div>
+   <div class="col" style="gap:10px"><h3>ប្រភេទគណនី</h3><div class="seg">${p.types.map((t, i) => `<button class="${i === state.sel.type ? "on" : ""}" onclick="state.sel.type=${i};render()">${t}</button>`).join("")}</div></div>
+   <div class="col" style="gap:10px"><h3>អ្វីដែលអ្នកទទួលបាន</h3><div class="card col" style="padding:16px;gap:10px">${p.feat.map(f => `<div class="row" style="gap:10px">${ic("check", 18, "#2DD4A0", 2.5)}<span class="small">${f}</span></div>`).join("")}</div></div></div>
+   ${bar("ទិញឥឡូវ · " + money(pl.p), `go('#/checkout/${p.id}')`, `<div class="row"><span class="small muted grow">សរុប · ${pl.k}</span><b style="font-size:22px">${money(pl.p)}</b></div>`)}`;
+}
+function checkout(id) {
+  const p = CATALOG.find(x => x.id === id); if (!p) return home(); const pl = p.plans[state.sel.plan] || p.plans[0]; const enough = state.balance >= pl.p;
+  if (!state.pay) state.pay = enough ? "wallet" : "khqr";
+  const opt = (k, ico, t, d, dim) => `<button class="sel ${state.pay === k ? "on" : ""}" onclick="state.pay='${k}';render()"><span class="ico">${ic(ico, 22, "#9B84FF")}</span><span class="grow col"><b>${t}</b><span class="small" style="color:${dim ? "var(--danger)" : "var(--muted)"}">${d}</span></span><span class="radio"></span></button>`;
+  return `${hdr("បញ្ជាក់ការបញ្ជាទិញ")}<div class="pad" style="padding-bottom:130px">
+   <div class="card row" style="padding:16px;gap:14px">${logo(p, 56, 16)}<div class="grow col"><b>${p.name}</b><span class="small muted">${pl.k} · ${p.types[state.sel.type]}</span></div><b>${money(pl.p)}</b></div>
+   <div class="col" style="gap:10px"><h3>វិធីទូទាត់</h3>${opt("wallet", "wallet", "កាបូប AuraPass", `សមតុល្យ ${money(state.balance)}${enough ? "" : " · មិនគ្រប់"}`, !enough)}${opt("khqr", "qr", "KHQR", "ស្កេនជាមួយកម្មវិធីធនាគារណាមួយ")}</div>
+   <div class="card col" style="padding:16px;gap:10px">${[["តម្លៃ", money(pl.p)], ["ថ្លៃសេវា", money(0)], ["បញ្ចុះតម្លៃ", "-" + money(0)]].map(([a, b]) => `<div class="row"><span class="small muted grow">${a}</span><b>${b}</b></div>`).join("")}</div>
+   <div class="row" style="gap:8px;color:var(--ok)">${ic("shield", 16, "#2DD4A0")}<span class="cap">ធានាគណនី · ដូរថ្មីបើមានបញ្ហា</span></div></div>
+   ${bar(state.pay === "wallet" ? `បង់ ${money(pl.p)} ពីកាបូប` : `បង់ ${money(pl.p)} តាម KHQR`, `pay('${p.id}')`, "", state.pay === "wallet" && !enough ? "disabled" : "")}`;
+}
+let timer;
+function khqr(id, amt, kind) {
+  const p = kind === "order" ? CATALOG.find(x => x.id === id) : null;
+  return `${hdr("ទូទាត់ KHQR")}<div class="pad" style="padding-bottom:130px"><div class="qr"><b style="color:#B3001B;font-size:20px">KHQR</b>
+    <div class="ph">${state.pay_img ? `<img src="${state.pay_img}" alt="KHQR">` : ic("qr", 150, "#fff", 1.5)}</div><b>AURAPASS</b><span style="font-size:26px;font-weight:700">${money(amt)}</span></div>
+   <div class="row" style="justify-content:center;gap:8px;background:var(--surface-2);padding:10px 14px;border-radius:16px">${ic("clock", 18, "#FFC24D")}<b>QR ផុតកំណត់ក្នុង <span id="cd">05:00</span></b></div>
+   ${CONFIG.API_BASE ? "" : `<div class="demo">DEMO — មិនទាន់ភ្ជាប់ API ទូទាត់ពិតទេ។ ចុច «ខ្ញុំបានបង់ហើយ» ដើម្បីសាកល្បង flow។</div>`}
+   <div class="small muted" style="text-align:center">ស្កេនជាមួយ ABA · ACLEDA · Wing ឬកម្មវិធីធនាគារណាមួយ។ ប្រព័ន្ធនឹងផ្ទៀងផ្ទាត់ដោយស្វ័យប្រវត្តិ ហើយផ្ញើគណនីមកក្នុង Telegram។</div></div>
+   ${bar("ខ្ញុំបានបង់ហើយ · ពិនិត្យ", "verify()")}`;
+}
+function startTimer() { clearInterval(timer); let s = state.pay_exp || 300; timer = setInterval(() => { s--; const e = $("#cd"); if (!e) return clearInterval(timer); e.textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); if (s <= 0) { clearInterval(timer); toast("QR ផុតកំណត់"); go("#/"); } }, 1000); }
+async function pay(id) {
+  const p = CATALOG.find(x => x.id === id), pl = p.plans[state.sel.plan]; haptic();
+  const order = { product: p.id, plan: pl.k, type: p.types[state.sel.type], amount: pl.p };
+  if (state.pay === "wallet") {
+    const r = await fetch((CONFIG.API_BASE||"") + "/api/premium/pay", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ order: { ...order, pay: "wallet" }, method: "wallet", uid: api.uid(), uname: api.uname() }) });
+    const j = await r.json();
+    if (j.error) { toast(j.error); return; }
+    if (j.paid) { const me = await api.me(); if (me.balance != null) { state.balance = me.balance; ls.set("kz_bal", state.balance); } return deliver(order, j); }
+    toast("មិនអាចបង់ពីកាបូប"); return;
+  }
+  const r = await api.createPayment(order); state.cur = { order, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300; go("#/pay");
+}
+async function verify() {
+  const c = state.cur; if (!c) return go("#/"); const r = await api.checkPayment(c.pid);
+  if (r.paid) { clearInterval(timer); deliver(c.order, r); } else toast("មិនទាន់ទទួលបានការបង់ប្រាក់ · សូមរង់ចាំបន្តិច");
+}
+function deliver(order, r) {
+  const o = { id: "KZ-" + Math.floor(30000 + Math.random() * 9999), ...order, at: Date.now(), cred: r.credentials || null };
+  state.orders.unshift(o); ls.set("kz_orders", state.orders); haptic("heavy"); try { tg && tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} go("#/done/" + o.id);
+}
+function done(oid) {
+  const o = state.orders.find(x => x.id === oid), p = o && CATALOG.find(x => x.id === o.product); if (!o) return home();
+  const c = o.cred || { email: "—", password: "—" };
+  const fld = (l, v, real) => `<div class="field"><div class="grow col"><span class="cap muted">${l}</span><b id="f_${l}">${real ? v : "••••••••••"}</b></div><button onclick="copy('${String(v).replace(/'/g, "")}')">${ic("copy", 20, "#9B84FF")}</button></div>`;
+  return `<div class="pad" style="align-items:center;padding-top:56px;text-align:center"><div class="avatar" style="width:84px;height:84px;background:linear-gradient(135deg,#2DD4A0,#0F8F6A)">${ic("check", 44, "#fff", 3)}</div>
+   <h1>ទទួលបានគណនីរួចរាល់!</h1><span class="small muted">លេខបញ្ជាទិញ #${o.id} · ${p.name} ${o.plan}</span>
+   <div class="card col" style="padding:18px;gap:12px;width:100%;border:2px solid var(--primary);text-align:left">${c.demo ? `<div class="demo">DEMO — គណនីគំរូ មិនមែនគណនីពិតទេ</div>` : ""}${fld("អ៊ីមែល", c.email, true)}${fld("ពាក្យសម្ងាត់", c.password, false)}</div>
+   <div class="card row" style="padding:14px;gap:10px;width:100%;text-align:left;background:var(--surface-2)">${ic("shield", 20, "#2DD4A0")}<div class="grow col"><b>ធានាគណនីពេញរយៈពេល</b><span class="small muted">មានបញ្ហា? ចុចជំនួយ ដូរគណនីថ្មីភ្លាមៗ</span></div></div>
+   <div class="card col" style="padding:16px;gap:8px;width:100%;text-align:left"><h3>របៀបប្រើ</h3>${["បើក " + p.name + " → Log in", "ប្រើអ៊ីមែល + ពាក្យសម្ងាត់ខាងលើ", "កុំប្តូរពាក្យសម្ងាត់ ឬអ៊ីមែល"].map((t, i) => `<span class="small muted">${i + 1}. ${t}</span>`).join("")}</div>
+   <button class="mb2" onclick="go('#/')">ត្រឡប់ទៅហាង</button></div>`;
+}
+function copy(v) { try { navigator.clipboard.writeText(v); } catch (e) {} toast("ចម្លងរួច ✓"); haptic(); }
+function orders() {
+  return `${hdr("ការបញ្ជាទិញ", false)}<div class="pad">${state.orders.length ? state.orders.map(o => { const p = CATALOG.find(x => x.id === o.product); return `<button class="card row pc" style="flex-direction:row;gap:12px" onclick="go('#/done/${o.id}')">${logo(p, 52, 16)}<div class="grow col"><b>${p.name}</b><span class="small muted">${o.plan} · #${o.id}</span><span class="cap muted">${new Date(o.at).toLocaleDateString("en-GB")}</span></div><div class="col" style="align-items:flex-end;gap:6px"><b class="price">${money(o.amount)}</b><span class="stock"><i></i>បានដឹកជញ្ជូន</span></div></button>`; }).join("") : `<div class="muted" style="text-align:center;padding:40px">មិនទាន់មានការបញ្ជាទិញ</div>`}</div>${tabs("list")}`;
+}
+function wallet() {
+  const A = [1, 2, 5, 10, 20, 50];
+  return `${hdr("កាបូប", false)}<div class="pad"><div class="banner"><div class="small" style="opacity:.85">សមតុល្យរបស់អ្នក</div><h1>${money(state.balance)}</h1><div class="cap" style="opacity:.75">AuraPass Wallet${user.id ? " · ID " + String(user.id).slice(0, 4) + "•••" : ""}</div></div>
+   <h3>បញ្ចូលលុយ</h3><div class="grid" style="grid-template-columns:repeat(3,1fr)">${A.map(a => `<button class="sel ${state.topup === a ? "on" : ""}" style="justify-content:center;padding:14px 0" onclick="state.topup=${a};render()"><b class="${state.topup === a ? "price" : ""}">$${a}</b></button>`).join("")}</div>
+   <button class="mb" onclick="topup()">${ic("qr", 20, "#fff")}&nbsp; បញ្ចូល $${state.topup} តាម KHQR</button>
+   <h3>ប្រវត្តិ</h3>${state.orders.slice(0, 5).map(o => `<div class="card row" style="padding:14px"><div class="grow col"><b>${CATALOG.find(x => x.id === o.product).name} ${o.plan}</b><span class="cap muted">#${o.id}</span></div><b>-${money(o.amount)}</b></div>`).join("") || `<span class="muted small">មិនទាន់មានប្រវត្តិ</span>`}</div>${tabs("wallet")}`;
+}
+async function topup() { const r = await api.createPayment({ topup: state.topup, amount: state.topup }); state.cur = { topup: state.topup, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300; go("#/topay"); }
+async function verifyTop() { const r = await api.checkPayment(state.cur.pid); if (r.paid) { state.balance = +(state.balance + state.cur.topup).toFixed(2); ls.set("kz_bal", state.balance); toast("បញ្ចូលលុយជោគជ័យ ✓"); haptic("heavy"); go("#/wallet"); } else toast("មិនទាន់ទទួលបានការបង់ប្រាក់"); }
+function help() {
+  const faq = [["ទទួលបានគណនីយូរប៉ុណ្ណា?", "ភាគច្រើនភ្លាមៗ បន្ទាប់ពីការទូទាត់ត្រូវបានផ្ទៀងផ្ទាត់។"], ["គណនីមានបញ្ហា តើធ្វើដូចម្តេច?", "ទាក់ទងជំនួយក្នុងរយៈពេលធានា ដើម្បីដូរគណនីថ្មី។"], ["បង់ហើយ តែមិនទាន់ទទួលបាន?", "ចុច «ពិនិត្យ» ម្តងទៀត ឬផ្ញើលេខបញ្ជាទិញមកជំនួយ។"]];
+  return `${hdr("ជំនួយ", false)}<div class="pad"><a class="card row" style="padding:16px;text-decoration:none;color:inherit" href="${CONFIG.SUPPORT_URL}" target="_blank"><span class="ico">${ic("send", 22, "#9B84FF")}</span><div class="grow col"><b>Telegram ជំនួយ</b><span class="small muted">ឆ្លើយតបក្នុងពីរបីនាទី</span></div></a>
+   <h3>សំណួរញឹកញាប់</h3>${faq.map(([q, a]) => `<div class="card col" style="padding:16px;gap:6px"><b>${q}</b><span class="small muted">${a}</span></div>`).join("")}</div>${tabs("help")}`;
+}
+
+/* ============ router ============ */
+function render() {
+  const h = location.hash || "#/"; const [, r, a] = h.split("/"); const app = $("#app"); const st = window.scrollY;
+  clearInterval(timer);
+  let v;
+  if (r === "p") v = product(a); else if (r === "checkout") v = checkout(a); else if (r === "pay") { v = khqr(state.cur && state.cur.order.product, state.cur ? state.cur.order.amount : 0, "order"); }
+  else if (r === "topay") { v = khqr(null, state.cur ? state.cur.topup : 0, "top").replace('onclick="verify()"', 'onclick="verifyTop()"'); }
+  else if (r === "done") v = done(a); else if (r === "orders") v = orders(); else if (r === "wallet") v = wallet(); else if (r === "help") v = help(); else v = home();
+  app.innerHTML = v; if (r === "pay" || r === "topay") startTimer(); if (r !== "p" && r !== "checkout") state.pay = null;
+  try { if (tg) { r && r !== "orders" && r !== "wallet" && r !== "help" ? tg.BackButton.show() : tg.BackButton.hide(); } } catch (e) {}
+  if (["p", "checkout", "pay", "topay"].includes(r) && h === (render.last || "")) window.scrollTo(0, st); else window.scrollTo(0, 0); render.last = h;
+}
+window.addEventListener("hashchange", render);
+if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor("#0B0F1A"); tg.setBackgroundColor("#0B0F1A"); tg.BackButton.onClick(() => history.back()); } catch (e) {} }
+(async () => {
+  try {
+    const r = await fetch((CONFIG.API_BASE||"") + "/api/premium/catalog");
+    const j = await r.json();
+    if (j.storeName) CONFIG.STORE = j.storeName;
+    if (j.supportUrl) CONFIG.SUPPORT_URL = j.supportUrl;
+    if (Array.isArray(j.products) && j.products.length) {
+      CATALOG = j.products.map(p => ({
+        id: p.id, name: p.name, letter: p.letter || "P", c: p.c || ["#7C5CFF","#3B82F6"],
+        cat: p.cat || "", tag: p.tag || "", rating: p.rating || 4.8, sold: p.sold || "0",
+        stock: p.stock !== false, feat: p.feat || [], plans: p.plans || [], types: p.types || ["Private"],
+      }));
+      const cats = [...new Set(CATALOG.map(x => x.cat).filter(Boolean))];
+      if (cats.length) CATS = ["ទាំងអស់", ...cats];
+    }
+    const me = await api.me();
+    if (me && me.balance != null) { state.balance = Number(me.balance) || 0; ls.set("kz_bal", state.balance); }
+  } catch (e) { console.warn(e); }
+  render();
+})();
+</script>
+</body>
+</html>

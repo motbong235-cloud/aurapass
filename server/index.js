@@ -1,0 +1,243 @@
+import express from "express";
+import cookieParser from "cookie-parser";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+import * as store from "./store.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(__dirname, "..");
+const PORT = Number(process.env.PORT) || 3000;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "aurapass-admin-change-me";
+const isProd = process.env.NODE_ENV === "production";
+
+const app = express();
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "ALLOWALL"); // Telegram WebApp iframe
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (isProd) res.setHeader("Strict-Transport-Security", "max-age=31536000");
+  next();
+});
+
+function safeEq(a, b) {
+  const x = crypto.createHash("sha256").update(String(a)).digest();
+  const y = crypto.createHash("sha256").update(String(b)).digest();
+  return crypto.timingSafeEqual(x, y);
+}
+
+function adminAuth(req, res, next) {
+  const token = req.cookies?.aura_admin;
+  if (!store.validSession(token)) return res.status(401).json({ error: "unauthorized" });
+  next();
+}
+
+/* ---------- Admin API ---------- */
+const adm = express.Router();
+adm.post("/login", (req, res) => {
+  const pw = String(req.body?.password || "");
+  if (!safeEq(pw, ADMIN_PASSWORD)) return res.status(401).json({ error: "ពាក្យសម្ងាត់ខុស" });
+  const token = store.createSession();
+  res.cookie("aura_admin", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProd,
+    maxAge: 7 * 86400000,
+  });
+  res.json({ ok: true });
+});
+adm.post("/logout", (req, res) => {
+  store.destroySession(req.cookies?.aura_admin);
+  res.clearCookie("aura_admin");
+  res.json({ ok: true });
+});
+adm.get("/stats", adminAuth, (_req, res) => res.json(store.stats()));
+adm.get("/orders", adminAuth, (_req, res) => res.json(store.listOrders()));
+adm.get("/payments", adminAuth, (_req, res) => res.json(store.listPayments()));
+adm.get("/products", adminAuth, (_req, res) => res.json(store.listProductsAdmin()));
+adm.post("/products", adminAuth, (req, res) => res.json(store.saveProduct(null, req.body || {})));
+adm.put("/products/:id", adminAuth, (req, res) => res.json(store.saveProduct(req.params.id, req.body || {})));
+adm.delete("/products/:id", adminAuth, (req, res) => {
+  store.deleteProduct(req.params.id);
+  res.json({ ok: true });
+});
+adm.get("/stock/:pid", adminAuth, (req, res) => {
+  res.json(store.getStock(req.params.pid, req.query.plan || ""));
+});
+adm.post("/stock/:pid", adminAuth, (req, res) => {
+  res.json(store.addStock(req.params.pid, req.query.plan || "", req.body?.lines || ""));
+});
+adm.delete("/stock/:pid", adminAuth, (req, res) => {
+  store.clearStock(req.params.pid, req.query.plan || "");
+  res.json({ ok: true });
+});
+adm.get("/users", adminAuth, (_req, res) => res.json(store.listUsers()));
+adm.post("/users/:id/balance", adminAuth, (req, res) => {
+  try {
+    res.json(store.adjustBalance(req.params.id, Number(req.body?.delta) || 0));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+adm.get("/settings", adminAuth, (_req, res) => res.json(store.getSettings()));
+adm.put("/settings", adminAuth, (req, res) => res.json(store.updateSettings(req.body || {})));
+adm.post("/orders/:id/deliver", adminAuth, (req, res) => {
+  try {
+    res.json(store.deliverOrder(req.params.id, req.body?.cred || ""));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+adm.post("/orders/:id/refund", adminAuth, (req, res) => {
+  try {
+    res.json(store.refundOrder(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+adm.post("/payments/:id/approve", adminAuth, (req, res) => {
+  try {
+    res.json(store.approvePayment(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+adm.post("/payments/:id/reject", adminAuth, (req, res) => {
+  try {
+    res.json(store.rejectPayment(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.use("/admin/api", adm);
+
+/* ---------- Public Mini App API ---------- */
+app.get("/api/premium/catalog", (_req, res) => {
+  const s = store.getSettings();
+  if (s.maintenance) return res.json({ maintenance: true, products: [], storeName: s.storeName });
+  res.json({
+    storeName: s.storeName,
+    supportUrl: s.supportUrl,
+    products: store.listProductsPublic(),
+  });
+});
+
+app.get("/api/premium/settings", (_req, res) => {
+  const s = store.getSettings();
+  res.json({
+    storeName: s.storeName,
+    supportUrl: s.supportUrl,
+    khqrImageUrl: s.khqrImageUrl,
+    payNote: s.payNote,
+    qrExpireSec: s.qrExpireSec,
+    maintenance: !!s.maintenance,
+  });
+});
+
+app.post("/api/premium/pay", (req, res) => {
+  const s = store.getSettings();
+  if (s.maintenance) return res.status(503).json({ error: "maintenance" });
+  const body = req.body || {};
+  const order = body.order || body;
+  const uid = body.uid || order.uid || "guest";
+  const uname = body.uname || order.uname || "Guest";
+  try {
+    if (order.topup) {
+      const pay = store.createPayment({
+        uid,
+        uname,
+        kind: "topup",
+        amount: Number(order.amount || order.topup),
+      });
+      return res.json({
+        id: pay.id,
+        qr_image_url: s.khqrImageUrl || "",
+        expires_in: s.qrExpireSec || 600,
+        amount: pay.amount,
+      });
+    }
+    if (order.pay === "wallet" || body.method === "wallet") {
+      const o = store.walletPurchase({
+        uid,
+        uname,
+        product: order.product,
+        plan: order.plan,
+        type: order.type,
+        amount: order.amount,
+      });
+      return res.json({
+        id: o.id,
+        paid: true,
+        credentials: o.cred
+          ? { email: o.cred.email, password: o.cred.password }
+          : null,
+        status: o.status,
+        orderId: o.id,
+      });
+    }
+    const pay = store.createPayment({
+      uid,
+      uname,
+      kind: "order",
+      amount: Number(order.amount),
+      product: order.product,
+      plan: order.plan,
+      type: order.type,
+    });
+    res.json({
+      id: pay.id,
+      qr_image_url: s.khqrImageUrl || "",
+      expires_in: s.qrExpireSec || 600,
+      amount: pay.amount,
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/premium/pay/:id", (req, res) => {
+  const pay = store.getPayment(req.params.id);
+  if (!pay) return res.status(404).json({ paid: false, error: "not_found" });
+  if (pay.status === "approved") {
+    const o = store.listOrders().find((x) => x.payId === pay.id);
+    return res.json({
+      paid: true,
+      status: o?.status || "approved",
+      orderId: o?.id,
+      credentials: o?.cred
+        ? { email: o.cred.email, password: o.cred.password }
+        : null,
+    });
+  }
+  if (pay.status === "rejected") return res.json({ paid: false, status: "rejected" });
+  res.json({ paid: false, status: "pending" });
+});
+
+app.get("/api/premium/me", (req, res) => {
+  const uid = String(req.query.uid || "");
+  const u = uid ? store.getUser(uid) : null;
+  res.json({ balance: u?.balance || 0, user: u });
+});
+
+app.get("/api/health", (_req, res) => res.json({ ok: true, name: "AuraPass" }));
+
+app.use(express.static(path.join(ROOT, "public"), { index: false }));
+
+app.get("/admin", (_req, res) => {
+  res.sendFile(path.join(ROOT, "public", "admin.html"));
+});
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(ROOT, "public", "index.html"));
+});
+
+app.listen(PORT, () => {
+  console.log(`AuraPass on :${PORT}`);
+  if (ADMIN_PASSWORD === "aurapass-admin-change-me") {
+    console.warn("[warn] Set ADMIN_PASSWORD env in production");
+  }
+});
