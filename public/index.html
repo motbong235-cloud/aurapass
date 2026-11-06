@@ -145,7 +145,7 @@ const api = {
 /* ============ views ============ */
 function home() {
   const list = CATALOG.filter(p => (state.cat === "ទាំងអស់" || p.cat === state.cat) && p.name.toLowerCase().includes(state.q.toLowerCase()));
-  return `<div class="hdr"><div class="avatar">${(user.first_name || "K")[0]}</div><div class="grow col"><h3>សួស្តី, ${user.first_name || ""}</h3><span class="cap muted">${CONFIG.STORE}</span></div>
+  return `<div class="hdr"><img class="avatar" src="/brand/icon-192.png" alt="Zen Premium" style="object-fit:cover;background:transparent;border:1px solid var(--line)"><div class="grow col"><h3>សួស្តី, ${user.first_name || ""}</h3><span class="cap muted">${CONFIG.STORE}</span></div>
   <button class="bal" onclick="go('#/wallet')">${ic("wallet", 16, "#FFC24D")}<span>${money(state.balance)}</span>${ic("plus", 14, "#9B84FF", 2.5)}</button></div>
   <div class="pad">
    <label class="search">${ic("search", 18, "#8E9ABB")}<input id="q" placeholder="ស្វែងរក CapCut, Spotify…" value="${state.q}" oninput="state.q=this.value;renderGrid()"></label>
