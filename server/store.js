@@ -306,7 +306,7 @@ function nextId(prefix) {
 }
 
 /** Create pending payment (KHQR manual approve or wallet). */
-export function createPayment({ uid, uname, kind, amount, product, plan, type }) {
+export function createPayment({ uid, uname, kind, amount, product, plan, type, providerRef, qrImageUrl, deeplink }) {
   const id = nextId("PAY-");
   const row = {
     id,
@@ -320,6 +320,10 @@ export function createPayment({ uid, uname, kind, amount, product, plan, type })
     status: "pending",
     at: Date.now(),
     expires: Date.now() + (Number(settings.qrExpireSec) || 600) * 1000,
+    providerRef: providerRef || "",
+    qrImageUrl: qrImageUrl || "",
+    deeplink: deeplink || "",
+    auto: Boolean(providerRef),
   };
   payments.unshift(row);
   persist();
@@ -328,6 +332,18 @@ export function createPayment({ uid, uname, kind, amount, product, plan, type })
 
 export function getPayment(id) {
   return payments.find((p) => p.id === id) || null;
+}
+
+/** After ABA confirms paid — approve + auto-deliver stock (same as admin approve). */
+export function settlePaidPayment(id) {
+  const pay = getPayment(id);
+  if (!pay) throw new Error("not_found");
+  if (pay.status === "approved") {
+    const o = orders.find((x) => x.payId === pay.id);
+    return { pay, order: o || null, already: true };
+  }
+  if (pay.status !== "pending") throw new Error("invalid_payment");
+  return approvePayment(id);
 }
 
 export function listPayments() {

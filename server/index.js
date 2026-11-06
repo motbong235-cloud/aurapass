@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import * as store from "./store.js";
+import * as abapay from "./abapay.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -139,7 +140,7 @@ app.get("/api/premium/settings", (_req, res) => {
   });
 });
 
-app.post("/api/premium/pay", (req, res) => {
+app.post("/api/premium/pay", async (req, res) => {
   const s = store.getSettings();
   if (s.maintenance) return res.status(503).json({ error: "maintenance" });
   const body = req.body || {};
@@ -148,59 +149,80 @@ app.post("/api/premium/pay", (req, res) => {
   const uname = body.uname || order.uname || "Guest";
   try {
     if (order.topup) {
+      const amount = Number(order.amount || order.topup);
+      let providerRef = "", qrImageUrl = s.khqrImageUrl || "", deeplink = "";
+      if (abapay.isAbaReady()) {
+        try {
+          const billId = "TP" + Date.now().toString(36).toUpperCase();
+          const qr = await abapay.createQr({ amount, billId, description: "AuraPass Topup" });
+          providerRef = qr.providerRef;
+          qrImageUrl = qr.qrImageUrl || qrImageUrl;
+          deeplink = qr.deeplink || "";
+        } catch (e) {
+          console.warn("[aba topup qr]", e.message);
+        }
+      }
       const pay = store.createPayment({
-        uid,
-        uname,
-        kind: "topup",
-        amount: Number(order.amount || order.topup),
+        uid, uname, kind: "topup", amount, providerRef, qrImageUrl, deeplink,
       });
       return res.json({
         id: pay.id,
-        qr_image_url: s.khqrImageUrl || "",
+        qr_image_url: pay.qrImageUrl || s.khqrImageUrl || "",
+        deeplink: pay.deeplink || "",
         expires_in: s.qrExpireSec || 600,
         amount: pay.amount,
+        auto: Boolean(pay.providerRef),
       });
     }
     if (order.pay === "wallet" || body.method === "wallet") {
       const o = store.walletPurchase({
-        uid,
-        uname,
-        product: order.product,
-        plan: order.plan,
-        type: order.type,
-        amount: order.amount,
+        uid, uname,
+        product: order.product, plan: order.plan, type: order.type, amount: order.amount,
       });
       return res.json({
-        id: o.id,
-        paid: true,
-        credentials: o.cred
-          ? { email: o.cred.email, password: o.cred.password }
-          : null,
-        status: o.status,
-        orderId: o.id,
+        id: o.id, paid: true,
+        credentials: o.cred ? { email: o.cred.email, password: o.cred.password } : null,
+        status: o.status, orderId: o.id,
+        auto_delivery: o.status === "delivered",
       });
     }
+    // KHQR order — auto QR if ABA keys set, else static image + admin approve
+    let providerRef = "", qrImageUrl = s.khqrImageUrl || "", deeplink = "";
+    if (abapay.isAbaReady()) {
+      try {
+        const billId = "AP" + Date.now().toString(36).toUpperCase();
+        const qr = await abapay.createQr({
+          amount: Number(order.amount),
+          billId,
+          description: `AuraPass ${order.product || ""} ${order.plan || ""}`.trim(),
+        });
+        providerRef = qr.providerRef;
+        qrImageUrl = qr.qrImageUrl || qrImageUrl;
+        deeplink = qr.deeplink || "";
+      } catch (e) {
+        console.warn("[aba order qr]", e.message);
+      }
+    }
     const pay = store.createPayment({
-      uid,
-      uname,
-      kind: "order",
+      uid, uname, kind: "order",
       amount: Number(order.amount),
-      product: order.product,
-      plan: order.plan,
-      type: order.type,
+      product: order.product, plan: order.plan, type: order.type,
+      providerRef, qrImageUrl, deeplink,
     });
     res.json({
       id: pay.id,
-      qr_image_url: s.khqrImageUrl || "",
+      qr_image_url: pay.qrImageUrl || s.khqrImageUrl || "",
+      deeplink: pay.deeplink || "",
       expires_in: s.qrExpireSec || 600,
       amount: pay.amount,
+      auto: Boolean(pay.providerRef),
     });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-app.get("/api/premium/pay/:id", (req, res) => {
+app.get("/api/premium/pay/:id", async (req, res) => {
   const pay = store.getPayment(req.params.id);
   if (!pay) return res.status(404).json({ paid: false, error: "not_found" });
   if (pay.status === "approved") {
@@ -209,13 +231,33 @@ app.get("/api/premium/pay/:id", (req, res) => {
       paid: true,
       status: o?.status || "approved",
       orderId: o?.id,
-      credentials: o?.cred
-        ? { email: o.cred.email, password: o.cred.password }
-        : null,
+      credentials: o?.cred ? { email: o.cred.email, password: o.cred.password } : null,
+      auto_delivery: o?.status === "delivered",
     });
   }
   if (pay.status === "rejected") return res.json({ paid: false, status: "rejected" });
-  res.json({ paid: false, status: "pending" });
+
+  // Auto payment: poll ABA PayWay when providerRef exists
+  if (pay.providerRef && abapay.isAbaReady()) {
+    try {
+      const chk = await abapay.checkPaid(pay.providerRef);
+      if (chk.paid) {
+        const settled = store.settlePaidPayment(pay.id);
+        const o = settled.order;
+        return res.json({
+          paid: true,
+          status: o?.status || "approved",
+          orderId: o?.id,
+          credentials: o?.cred ? { email: o.cred.email, password: o.cred.password } : null,
+          auto_delivery: o?.status === "delivered",
+          auto_payment: true,
+        });
+      }
+    } catch (e) {
+      console.warn("[aba check]", e.message);
+    }
+  }
+  res.json({ paid: false, status: "pending", auto: Boolean(pay.providerRef) });
 });
 
 app.get("/api/premium/me", (req, res) => {
@@ -224,7 +266,7 @@ app.get("/api/premium/me", (req, res) => {
   res.json({ balance: u?.balance || 0, user: u });
 });
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, name: "AuraPass" }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, name: "AuraPass", aba: abapay.isAbaReady() }));
 
 app.use(express.static(path.join(ROOT, "public"), { index: false }));
 
@@ -235,8 +277,25 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(ROOT, "public", "index.html"));
 });
 
+// Background: auto-settle ABA payments every 12s
+setInterval(async () => {
+  if (!abapay.isAbaReady()) return;
+  const pending = store.listPayments().filter((p) => p.status === "pending" && p.providerRef);
+  for (const pay of pending.slice(0, 15)) {
+    try {
+      const chk = await abapay.checkPaid(pay.providerRef);
+      if (chk.paid) {
+        store.settlePaidPayment(pay.id);
+        console.log("[auto-pay] settled", pay.id);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+}, 12_000).unref?.();
+
 app.listen(PORT, () => {
-  console.log(`AuraPass on :${PORT}`);
+  console.log(`AuraPass on :${PORT} | ABA auto-pay: ${abapay.isAbaReady() ? "ON" : "OFF (manual KHQR)"}`);
   if (ADMIN_PASSWORD === "aurapass-admin-change-me") {
     console.warn("[warn] Set ADMIN_PASSWORD env in production");
   }
