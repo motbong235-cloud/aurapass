@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="km"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Zen Premium — Admin</title>
+<link rel="icon" type="image/png" href="/favicon-48.png">
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0B0F1A;--surface:#141A2B;--s2:#1C2540;--ink:#F2F5FF;--muted:#8E9ABB;--line:#26304D;--pri:#7C5CFF;--pri2:#3B82F6;--acc:#FFC24D;--ok:#2DD4A0;--bad:#FF6B81;--brand:linear-gradient(135deg,#7C5CFF,#3B82F6)}
@@ -36,11 +37,11 @@ function toast(m) { const d = document.createElement("div"); d.className = "toas
 async function A(path, method = "GET", body) { const r = await fetch("/admin/api/" + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); if (r.status === 401 && path !== "login") { loginView(); throw new Error("auth"); } const j = await r.json(); if (j.error) { toast(j.error); throw new Error(j.error); } return j; }
 const PAGES = [["dash", "ផ្ទាំងគ្រប់គ្រង"], ["orders", "ការបញ្ជាទិញ"], ["pay", "ការទូទាត់"], ["products", "ផលិតផល"], ["stock", "ស្តុកគណនី"], ["users", "អ្នកប្រើ"], ["settings", "ការកំណត់"]];
 let page = "dash", badge = 0;
-function loginView() { $("#root").innerHTML = `<div class="login"><form class="card" onsubmit="return doLogin(event)"><h3>Zen Premium Admin</h3><label>ពាក្យសម្ងាត់</label><input id="pw" type="password" autofocus><div style="height:14px"></div><button class="btn" style="width:100%">ចូល</button></form></div>`; }
+function loginView() { $("#root").innerHTML = `<div class="login"><form class="card" onsubmit="return doLogin(event)"><div style="text-align:center;margin-bottom:8px"><img src="/brand/icon-192.png" width="64" height="64" style="border-radius:16px" alt=""></div><h3>Zen Premium Admin</h3><label>ពាក្យសម្ងាត់</label><input id="pw" type="password" autofocus><div style="height:14px"></div><button class="btn" style="width:100%">ចូល</button></form></div>`; }
 async function doLogin(e) { e.preventDefault(); try { await A("login", "POST", { password: $("#pw").value }); shell(); } catch (x) {} return false; }
 async function shell() {
   try { const st = await A("stats"); badge = st.pendingPay + st.processing; } catch (e) { return; }
-  $("#root").innerHTML = `<div class="app"><aside><div class="brand"><div class="logo">Z</div>Zen Premium Admin</div>${PAGES.map(([k, l]) => `<a class="${k === page ? "on" : ""}" onclick="go('${k}')">${l}${k === "pay" && badge ? `<span class="n">${badge}</span>` : ""}</a>`).join("")}<div class="sp"></div><a onclick="out()">ចាកចេញ</a></aside><main id="main"></main></div>`;
+  $("#root").innerHTML = `<div class="app"><aside><div class="brand"><img class="logo" src="/brand/icon-64.png" alt="Z" style="width:36px;height:36px;border-radius:12px;object-fit:cover;padding:0">Zen Premium Admin</div>${PAGES.map(([k, l]) => `<a class="${k === page ? "on" : ""}" onclick="go('${k}')">${l}${k === "pay" && badge ? `<span class="n">${badge}</span>` : ""}</a>`).join("")}<div class="sp"></div><a onclick="out()">ចាកចេញ</a></aside><main id="main"></main></div>`;
   views[page]();
 }
 function go(p) { page = p; shell(); } async function out() { await A("logout", "POST"); loginView(); }
