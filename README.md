@@ -1,18 +1,18 @@
-# Zen Premium — Telegram Mini App
+# Zen Premium — Telegram Mini App + Bot
 
-Digital premium accounts store (CapCut, Spotify, Netflix, …) for Telegram WebApp.
+## Render env (required for bot)
+| Key | Example |
+|-----|---------|
+| `BOT_TOKEN` | from @BotFather |
+| `WEBAPP_URL` | `https://YOUR-SERVICE.onrender.com` |
+| `ADMIN_PASSWORD` | strong password for `/admin` |
+| `DATA_DIR` | `/var/data` |
+| `ADMIN_ID` | optional Telegram user id |
 
-## Deploy (Render)
-1. Connect repo · plan **Starter**
-2. Env:
-   - `ADMIN_PASSWORD` — strong password
-   - `DATA_DIR=/var/data` + disk
-   - Optional auto-pay: `ABA_API_KEY`, `ABA_MACHINE_ID`
-3. Mini App URL in BotFather
-4. Admin: `https://YOUR.onrender.com/admin`
+## BotFather
+1. `/newbot` → Zen Premium / `ZenPremiumStoreBot`
+2. Paste token → Render `BOT_TOKEN`
+3. `/setmenubutton` → Web App URL = same as `WEBAPP_URL`
+4. Open bot → `/start` → button **បើក Zen Premium**
 
-## Local
-```bash
-npm install
-ADMIN_PASSWORD=changeme npm start
-```
+Only **one** Render instance should run (409 if two poll same token).

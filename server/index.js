@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 import * as store from "./store.js";
 import * as abapay from "./abapay.js";
+import { startBot, webhookMiddleware } from "./bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -266,6 +267,8 @@ app.get("/api/premium/me", (req, res) => {
   res.json({ balance: u?.balance || 0, user: u });
 });
 
+app.post("/telegram/webhook", express.json(), webhookMiddleware());
+
 app.get("/api/health", (_req, res) => res.json({ ok: true, name: "Zen Premium", aba: abapay.isAbaReady() }));
 
 app.use(express.static(path.join(ROOT, "public"), { index: false }));
@@ -299,4 +302,5 @@ app.listen(PORT, () => {
   if (ADMIN_PASSWORD === "zenpremium-admin-change-me") {
     console.warn("[warn] Set ADMIN_PASSWORD env in production");
   }
+  startBot().catch((e) => console.error("[bot start]", e.message));
 });
