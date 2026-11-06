@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>AuraPass</title>
+<title>Zen Premium</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -63,7 +63,7 @@ svg{display:block}
 <script>
 /* ============ CONFIG ============ */
 const CONFIG = {
-  STORE: "AuraPass Store",
+  STORE: "Zen Premium",
   API_BASE: "",            // empty = same origin (production on Render)
   SUPPORT_URL: "https://t.me/kairozen_support",
   CURRENCY: "$",
@@ -173,7 +173,7 @@ function checkout(id) {
   const opt = (k, ico, t, d, dim) => `<button class="sel ${state.pay === k ? "on" : ""}" onclick="state.pay='${k}';render()"><span class="ico">${ic(ico, 22, "#9B84FF")}</span><span class="grow col"><b>${t}</b><span class="small" style="color:${dim ? "var(--danger)" : "var(--muted)"}">${d}</span></span><span class="radio"></span></button>`;
   return `${hdr("បញ្ជាក់ការបញ្ជាទិញ")}<div class="pad" style="padding-bottom:130px">
    <div class="card row" style="padding:16px;gap:14px">${logo(p, 56, 16)}<div class="grow col"><b>${p.name}</b><span class="small muted">${pl.k} · ${p.types[state.sel.type]}</span></div><b>${money(pl.p)}</b></div>
-   <div class="col" style="gap:10px"><h3>វិធីទូទាត់</h3>${opt("wallet", "wallet", "កាបូប AuraPass", `សមតុល្យ ${money(state.balance)}${enough ? "" : " · មិនគ្រប់"}`, !enough)}${opt("khqr", "qr", "KHQR", "ស្កេនជាមួយកម្មវិធីធនាគារណាមួយ")}</div>
+   <div class="col" style="gap:10px"><h3>វិធីទូទាត់</h3>${opt("wallet", "wallet", "កាបូប Zen Premium", `សមតុល្យ ${money(state.balance)}${enough ? "" : " · មិនគ្រប់"}`, !enough)}${opt("khqr", "qr", "KHQR", "ស្កេនជាមួយកម្មវិធីធនាគារណាមួយ")}</div>
    <div class="card col" style="padding:16px;gap:10px">${[["តម្លៃ", money(pl.p)], ["ថ្លៃសេវា", money(0)], ["បញ្ចុះតម្លៃ", "-" + money(0)]].map(([a, b]) => `<div class="row"><span class="small muted grow">${a}</span><b>${b}</b></div>`).join("")}</div>
    <div class="row" style="gap:8px;color:var(--ok)">${ic("shield", 16, "#2DD4A0")}<span class="cap">ធានាគណនី · ដូរថ្មីបើមានបញ្ហា</span></div></div>
    ${bar(state.pay === "wallet" ? `បង់ ${money(pl.p)} ពីកាបូប` : `បង់ ${money(pl.p)} តាម KHQR`, `pay('${p.id}')`, "", state.pay === "wallet" && !enough ? "disabled" : "")}`;
@@ -182,7 +182,7 @@ let timer;
 function khqr(id, amt, kind) {
   const p = kind === "order" ? CATALOG.find(x => x.id === id) : null;
   return `${hdr("ទូទាត់ KHQR")}<div class="pad" style="padding-bottom:130px"><div class="qr"><b style="color:#B3001B;font-size:20px">KHQR</b>
-    <div class="ph">${state.pay_img ? `<img src="${state.pay_img}" alt="KHQR">` : ic("qr", 150, "#fff", 1.5)}</div><b>AURAPASS</b><span style="font-size:26px;font-weight:700">${money(amt)}</span></div>
+    <div class="ph">${state.pay_img ? `<img src="${state.pay_img}" alt="KHQR">` : ic("qr", 150, "#fff", 1.5)}</div><b>ZEN PREMIUM</b><span style="font-size:26px;font-weight:700">${money(amt)}</span></div>
    <div class="row" style="justify-content:center;gap:8px;background:var(--surface-2);padding:10px 14px;border-radius:16px">${ic("clock", 18, "#FFC24D")}<b>QR ផុតកំណត់ក្នុង <span id="cd">05:00</span></b></div>
    ${CONFIG.API_BASE ? "" : `<div class="demo">DEMO — មិនទាន់ភ្ជាប់ API ទូទាត់ពិតទេ។ ចុច «ខ្ញុំបានបង់ហើយ» ដើម្បីសាកល្បង flow។</div>`}
    <div class="small muted" style="text-align:center">ស្កេនជាមួយ ABA · ACLEDA · Wing ឬកម្មវិធីធនាគារណាមួយ។ ប្រព័ន្ធនឹងផ្ទៀងផ្ទាត់ដោយស្វ័យប្រវត្តិ ហើយផ្ញើគណនីមកក្នុង Telegram។</div></div>
@@ -227,7 +227,7 @@ function orders() {
 }
 function wallet() {
   const A = [1, 2, 5, 10, 20, 50];
-  return `${hdr("កាបូប", false)}<div class="pad"><div class="banner"><div class="small" style="opacity:.85">សមតុល្យរបស់អ្នក</div><h1>${money(state.balance)}</h1><div class="cap" style="opacity:.75">AuraPass Wallet${user.id ? " · ID " + String(user.id).slice(0, 4) + "•••" : ""}</div></div>
+  return `${hdr("កាបូប", false)}<div class="pad"><div class="banner"><div class="small" style="opacity:.85">សមតុល្យរបស់អ្នក</div><h1>${money(state.balance)}</h1><div class="cap" style="opacity:.75">Zen Premium Wallet${user.id ? " · ID " + String(user.id).slice(0, 4) + "•••" : ""}</div></div>
    <h3>បញ្ចូលលុយ</h3><div class="grid" style="grid-template-columns:repeat(3,1fr)">${A.map(a => `<button class="sel ${state.topup === a ? "on" : ""}" style="justify-content:center;padding:14px 0" onclick="state.topup=${a};render()"><b class="${state.topup === a ? "price" : ""}">$${a}</b></button>`).join("")}</div>
    <button class="mb" onclick="topup()">${ic("qr", 20, "#fff")}&nbsp; បញ្ចូល $${state.topup} តាម KHQR</button>
    <h3>ប្រវត្តិ</h3>${state.orders.slice(0, 5).map(o => `<div class="card row" style="padding:14px"><div class="grow col"><b>${CATALOG.find(x => x.id === o.product).name} ${o.plan}</b><span class="cap muted">#${o.id}</span></div><b>-${money(o.amount)}</b></div>`).join("") || `<span class="muted small">មិនទាន់មានប្រវត្តិ</span>`}</div>${tabs("wallet")}`;

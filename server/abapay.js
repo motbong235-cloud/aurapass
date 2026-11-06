@@ -54,7 +54,7 @@ export async function createQr({ amount, billId, description }) {
   const payload = {
     amount: amt,
     bill_id: String(billId || "").slice(0, 64),
-    description: String(description || "AuraPass").slice(0, 120),
+    description: String(description || "Zen Premium").slice(0, 120),
   };
   if (machineId()) payload.machine_id = machineId();
 

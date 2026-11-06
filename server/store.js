@@ -138,7 +138,7 @@ let users = load("users.json", {}); // uid -> { id, name, username, balance, joi
 let orders = load("orders.json", []);
 let payments = load("payments.json", []);
 let settings = load("settings.json", {
-  storeName: "AuraPass Premium",
+  storeName: "Zen Premium",
   supportUrl: "https://t.me/kairozen_support",
   khqrImageUrl: "",
   payNote: "ស្កេន KHQR រួចចុច «ខ្ញុំបានបង់ហើយ»",

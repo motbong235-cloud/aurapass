@@ -9,7 +9,7 @@ import * as abapay from "./abapay.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const PORT = Number(process.env.PORT) || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "aurapass-admin-change-me";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "zenpremium-admin-change-me";
 const isProd = process.env.NODE_ENV === "production";
 
 const app = express();
@@ -154,7 +154,7 @@ app.post("/api/premium/pay", async (req, res) => {
       if (abapay.isAbaReady()) {
         try {
           const billId = "TP" + Date.now().toString(36).toUpperCase();
-          const qr = await abapay.createQr({ amount, billId, description: "AuraPass Topup" });
+          const qr = await abapay.createQr({ amount, billId, description: "Zen Premium Topup" });
           providerRef = qr.providerRef;
           qrImageUrl = qr.qrImageUrl || qrImageUrl;
           deeplink = qr.deeplink || "";
@@ -194,7 +194,7 @@ app.post("/api/premium/pay", async (req, res) => {
         const qr = await abapay.createQr({
           amount: Number(order.amount),
           billId,
-          description: `AuraPass ${order.product || ""} ${order.plan || ""}`.trim(),
+          description: `Zen Premium ${order.product || ""} ${order.plan || ""}`.trim(),
         });
         providerRef = qr.providerRef;
         qrImageUrl = qr.qrImageUrl || qrImageUrl;
@@ -266,7 +266,7 @@ app.get("/api/premium/me", (req, res) => {
   res.json({ balance: u?.balance || 0, user: u });
 });
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, name: "AuraPass", aba: abapay.isAbaReady() }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, name: "Zen Premium", aba: abapay.isAbaReady() }));
 
 app.use(express.static(path.join(ROOT, "public"), { index: false }));
 
@@ -295,8 +295,8 @@ setInterval(async () => {
 }, 12_000).unref?.();
 
 app.listen(PORT, () => {
-  console.log(`AuraPass on :${PORT} | ABA auto-pay: ${abapay.isAbaReady() ? "ON" : "OFF (manual KHQR)"}`);
-  if (ADMIN_PASSWORD === "aurapass-admin-change-me") {
+  console.log(`Zen Premium on :${PORT} | ABA auto-pay: ${abapay.isAbaReady() ? "ON" : "OFF (manual KHQR)"}`);
+  if (ADMIN_PASSWORD === "zenpremium-admin-change-me") {
     console.warn("[warn] Set ADMIN_PASSWORD env in production");
   }
 });
