@@ -128,7 +128,9 @@ const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order, uid: this.uid(), uname: this.uname(), initData: tg ? tg.initData : "" }),
     });
-    return r.json();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: j.error || "pay_failed", message: j.message || j.error || ("HTTP " + r.status) };
+    return j;
   },
   async checkPayment(id) {
     const r = await fetch(this.base() + "/api/premium/pay/" + id);
@@ -185,11 +187,14 @@ function checkout(id) {
 let timer;
 function khqr(id, amt, kind) {
   const p = kind === "order" ? CATALOG.find(x => x.id === id) : null;
-  return `${hdr("ទូទាត់ KHQR")}<div class="pad" style="padding-bottom:130px"><div class="qr"><img src="/brand/icon-64.png" width="48" height="48" alt="Zen" style="border-radius:12px;margin-bottom:4px"><b style="color:#B3001B;font-size:20px">KHQR</b>
-    <div class="ph">${state.pay_img ? `<img src="${state.pay_img}" alt="KHQR">` : ic("qr", 150, "#fff", 1.5)}</div><b>ZEN PREMIUM</b><span style="font-size:26px;font-weight:700">${money(amt)}</span></div>
+  return `${hdr("ទូទាត់ KHQR")}<div class="pad" style="padding-bottom:130px"><div class="qr"><b style="color:#B3001B;font-size:20px">KHQR</b>
+    ${state.pay_img
+      ? `<img src="${state.pay_img}" alt="KHQR" style="width:220px;height:220px;object-fit:contain;background:#fff;border-radius:12px">`
+      : `<div class="ph">${ic("qr", 150, "#fff", 1.5)}</div>`}
+    <b>ZEN PREMIUM</b><span style="font-size:26px;font-weight:700">${money(amt)}</span></div>
    <div class="row" style="justify-content:center;gap:8px;background:var(--surface-2);padding:10px 14px;border-radius:16px">${ic("clock", 18, "#FFC24D")}<b>QR ផុតកំណត់ក្នុង <span id="cd">05:00</span></b></div>
    ${state.pay_deeplink ? `<a class="mb2" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="${state.pay_deeplink}">OPEN ABA Mobile</a>` : ""}
-   ${!state.pay_img ? `<div class="demo">មិនមានរូប QR — ពិនិត្យ ABA_API_KEY / ABA_MERCHANT_ID លើ Render</div>` : ""}
+   ${!state.pay_img ? `<div class="demo">មិនមានរូប QR — ដាក់ ABA_API_KEY + ABA_MERCHANT_ID លើ Render រួច Deploy ម្តងទៀត</div>` : ""}
    <div class="small muted" style="text-align:center">ស្កេនជាមួយ ABA · ACLEDA · Wing ឬកម្មវិធីធនាគារណាមួយ។ ប្រព័ន្ធនឹងផ្ទៀងផ្ទាត់ដោយស្វ័យប្រវត្តិ ហើយផ្ញើគណនីមកក្នុង Telegram។</div></div>
    ${bar("ខ្ញុំបានបង់ហើយ · ពិនិត្យ", "verify()")}`;
 }

@@ -167,13 +167,18 @@ app.post("/api/premium/pay", async (req, res) => {
         providerRef = qr.providerRef;
         qrImageUrl = qr.qrImageUrl || "";
         deeplink = qr.deeplink || "";
+      } else if (!qrImageUrl) {
+        return res.status(503).json({
+          error: "qr_not_configured",
+          message: "មិនទាន់ដាក់ ABA_API_KEY + ABA_MERCHANT_ID លើ Render (ឬ KHQR image ក្នុង Admin)",
+        });
       }
       const pay = store.createPayment({
         uid, uname, kind: "topup", amount, providerRef, qrImageUrl, deeplink,
       });
       return res.json({
         id: pay.id,
-        qr_image_url: pay.qrImageUrl || s.khqrImageUrl || "",
+        qr_image_url: abapay.normalizeQrImage(pay.qrImageUrl || s.khqrImageUrl || ""),
         deeplink: pay.deeplink || "",
         expires_in: s.qrExpireSec || 600,
         amount: pay.amount,
@@ -209,6 +214,11 @@ app.post("/api/premium/pay", async (req, res) => {
       providerRef = qr.providerRef;
       qrImageUrl = qr.qrImageUrl || "";
       deeplink = qr.deeplink || "";
+    } else if (!qrImageUrl) {
+      return res.status(503).json({
+        error: "qr_not_configured",
+        message: "មិនទាន់ដាក់ ABA_API_KEY + ABA_MERCHANT_ID លើ Render (ឬ KHQR image ក្នុង Admin)",
+      });
     }
     const pay = store.createPayment({
       uid, uname, kind: "order",
@@ -218,7 +228,7 @@ app.post("/api/premium/pay", async (req, res) => {
     });
     res.json({
       id: pay.id,
-      qr_image_url: pay.qrImageUrl || s.khqrImageUrl || "",
+      qr_image_url: abapay.normalizeQrImage(pay.qrImageUrl || s.khqrImageUrl || ""),
       deeplink: pay.deeplink || "",
       expires_in: s.qrExpireSec || 600,
       amount: pay.amount,

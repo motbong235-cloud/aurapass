@@ -36,6 +36,19 @@ export function isAbaReady() {
   return Boolean(apiKey() && merchantId());
 }
 
+/** Ensure browser can display QR (data URL or https) */
+export function normalizeQrImage(img) {
+  if (!img || typeof img !== "string") return "";
+  const s = img.trim();
+  if (!s) return "";
+  if (s.startsWith("data:") || s.startsWith("http://") || s.startsWith("https://") || s.startsWith("blob:")) return s;
+  // raw base64
+  if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.length > 100) {
+    return "data:image/png;base64," + s.replace(/\s/g, "");
+  }
+  return s;
+}
+
 function makeUsername(raw) {
   const u = String(raw || "")
     .replace(/^@/, "")
@@ -94,7 +107,7 @@ export async function createQr({ amount, billId, description, username }) {
             deeplink = `abamobilebank://ababank.com?type=payway&qrcode=${encodeURIComponent(qr_string)}`;
           }
         }
-        const qrImageUrl = data.card_image || data.qr_image || "";
+        const qrImageUrl = normalizeQrImage(data.card_image || data.qr_image || "");
         return {
           success: true,
           providerRef: String(data.payment_id),
