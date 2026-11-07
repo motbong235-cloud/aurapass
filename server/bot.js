@@ -17,6 +17,10 @@ const ADMIN_IDS = new Set(
 
 const API = TOKEN ? `https://api.telegram.org/bot${TOKEN}` : "";
 const wiz = new Map();
+/** Short callback targets for stock: a:st:0 → { pid, plan } */
+const stockTargets = new Map();
+let stockSeq = 0;
+
 
 async function tg(method, body) {
   if (!TOKEN) throw new Error("BOT_TOKEN missing");
@@ -176,31 +180,77 @@ async function listOrd(chatId) {
   }
 }
 
-async function listStock(chatId) {
+async function listStock(chatId, fromId) {
   const ps = store.listProductsAdmin().filter((p) => p.delivery === "auto");
   if (!ps.length) {
     await tg("sendMessage", {
       chat_id: chatId,
-      text: "មិនទាន់មាន product auto\nបើក Web Admin ដើម្បីបង្កើត",
+      text:
+        "មិនទាន់មាន product <b>Auto</b>\n" +
+        "បង្កើតផលិតផល → ជ្រើស Auto សិន ទើបបន្ថែមស្តុកបាន\n\n" +
+        "ចុច 🎮 ផលិតផល → ➕ បង្កើត",
+      parse_mode: "HTML",
       reply_markup: {
-        inline_keyboard: [[{ text: "🌐 Web Admin", url: `${web()}/admin` }]],
+        inline_keyboard: [
+          [{ text: "➕ បង្កើតផលិតផល", callback_data: "a:newp" }],
+          [{ text: "🌐 Web Admin", web_app: { url: `${web()}/admin` } }],
+        ],
       },
     });
     return;
   }
-  const rows = [];
-  for (const p of ps.slice(0, 15)) {
+
+  // Flatten plans
+  const options = [];
+  for (const p of ps) {
     for (const pl of p.plans || []) {
-      const n = p.stockByPlan?.[pl.k] || 0;
-      const mark = n === 0 ? "🔴" : n <= 2 ? "🟡" : "🟢";
-      const cb = `a:st:${p.id}:${Buffer.from(pl.k, "utf8").toString("base64url")}`.slice(0, 64);
-      rows.push([{ text: `${mark} ${p.name} · ${pl.k} (${n})`, callback_data: cb }]);
+      options.push({ pid: p.id, name: p.name, plan: pl.k, n: p.stockByPlan?.[pl.k] || 0 });
     }
+  }
+  if (!options.length) {
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: "មាន product តែគ្មានកញ្ចប់ — កែនៅ Web Admin",
+      reply_markup: kbAdmin(),
+    });
+    return;
+  }
+
+  // Only 1 plan → auto-select (no extra click)
+  if (options.length === 1 && fromId) {
+    const o = options[0];
+    wiz.set(String(fromId), { step: "stock", pid: o.pid, plan: o.plan, at: Date.now() });
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text:
+        `📥 <b>${esc(o.name)}</b> · <b>${esc(o.plan)}</b> (ស្តុក ${o.n})\n\n` +
+        `ផ្ញើស្តុកឥឡូវ (ច្រើនបន្ទាត់បាន):\n` +
+        `<code>email:password</code>\n` +
+        `ឬ <code>user:pass</code> / លេខ + link\n\n` +
+        `/cancel បោះបង់`,
+      parse_mode: "HTML",
+      reply_markup: kbAdmin(),
+    });
+    return;
+  }
+
+  stockTargets.clear();
+  const rows = [];
+  for (const o of options.slice(0, 40)) {
+    const idx = String(++stockSeq % 100000);
+    stockTargets.set(idx, { pid: o.pid, plan: o.plan, name: o.name });
+    const mark = o.n === 0 ? "🔴" : o.n <= 2 ? "🟡" : "🟢";
+    const label = `${mark} ${o.name} · ${o.plan} (${o.n})`.slice(0, 60);
+    rows.push([{ text: label, callback_data: `a:st:${idx}` }]);
   }
   rows.push([{ text: "« ត្រឡប់", callback_data: "a:home" }]);
   await tg("sendMessage", {
     chat_id: chatId,
-    text: "<b>📥 ជ្រើសកញ្ចប់</b>\nរួចផ្ញើ <code>email:password</code> (ច្រើនបន្ទាត់បាន)",
+    text:
+      "<b>📥 ជ្រើសកញ្ចប់</b>\n" +
+      "១) ចុចកញ្ចប់ខាងក្រោម\n" +
+      "២) រួចផ្ញើស្តុក (មួយបន្ទាត់ = ១គណនី)\n\n" +
+      "ឧ: <code>mail@gmail.com:password123</code>",
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: rows },
   });
@@ -289,7 +339,7 @@ export async function handleUpdate(update) {
     }
     if (data === "a:stock") {
       await ans(cq);
-      return listStock(chatId);
+      return listStock(chatId, fromId);
     }
 
     if (data.startsWith("a:ok:")) {
@@ -349,23 +399,28 @@ export async function handleUpdate(update) {
       return;
     }
     if (data.startsWith("a:st:")) {
-      // a:st:pid:base64plan
-      const rest = data.slice(5);
-      const i = rest.indexOf(":");
-      const pid = rest.slice(0, i);
-      let plan = rest.slice(i + 1);
-      try {
-        plan = Buffer.from(plan, "base64url").toString("utf8");
-      } catch {
-        /* keep */
+      const idx = data.slice(5);
+      const target = stockTargets.get(idx);
+      if (!target) {
+        await ans(cq, "ផុតពេល — ចុច 📥 ស្តុក ម្តងទៀត");
+        return listStock(chatId, fromId);
       }
-      wiz.set(String(fromId), { step: "stock", pid, plan });
-      await ans(cq, "ផ្ញើស្តុក");
+      wiz.set(String(fromId), {
+        step: "stock",
+        pid: target.pid,
+        plan: target.plan,
+        at: Date.now(),
+      });
+      const n = store.listProductsAdmin().find((p) => p.id === target.pid)?.stockByPlan?.[target.plan] || 0;
+      await ans(cq, "ផ្ញើស្តុកឥឡូវ");
       await tg("sendMessage", {
         chat_id: chatId,
         text:
-          `📥 <b>${esc(pid)}</b> · ${esc(plan)}\n` +
-          `ផ្ញើ (ច្រើនបន្ទាត់បាន):\n<code>a@mail.com:pass1\nb@mail.com:pass2</code>\n\n/cancel`,
+          `📥 <b>${esc(target.name)}</b> · <b>${esc(target.plan)}</b> (ស្តុក ${n})\n\n` +
+          `✅ រួចហើយ — ផ្ញើស្តុកឥឡូវនេះ:\n` +
+          `<code>email:password</code>\n` +
+          `ឬបិទភ្ជាប់ច្រើនបន្ទាត់\n\n` +
+          `/cancel បោះបង់`,
         parse_mode: "HTML",
       });
       return;
@@ -404,19 +459,42 @@ export async function handleUpdate(update) {
       return;
     }
     if (w.step === "stock") {
-      try {
-        const r = store.addStock(w.pid, w.plan, text);
+      // Ignore menu button presses while waiting for stock lines
+      const menuBtns = ["📊 ទិដ្ឋភាព", "💳 បង់ប្រាក់", "📦 Order", "📥 ស្តុក", "🎮 ផលិតផល", "👥 User", "🛒 ហាង", "🌐 Web Admin", "/admin", "Admin"];
+      if (menuBtns.includes(text) || text.startsWith("/start")) {
+        // fall through to menu handlers — but keep wizard unless explicit cancel
+        if (text === "📥 ស្តុក") {
+          return listStock(chatId, fromId);
+        }
+        // other menus: cancel stock wait
         wiz.delete(String(fromId));
-        await tg("sendMessage", {
-          chat_id: chatId,
-          text: `✅ បន្ថែម <b>${r.added}</b> · សរុប <b>${r.total}</b>`,
-          parse_mode: "HTML",
-          reply_markup: kbAdmin(),
-        });
-      } catch (e) {
-        await tg("sendMessage", { chat_id: chatId, text: "❌ " + e.message });
+        // continue to menu below
+      } else {
+        try {
+          const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
+          if (!lines.length) {
+            await tg("sendMessage", { chat_id: chatId, text: "ផ្ញើយ៉ាងហោច 1 បន្ទាត់ស្តុក" });
+            return;
+          }
+          const r = store.addStock(w.pid, w.plan, lines.join("\n"));
+          wiz.delete(String(fromId));
+          await tg("sendMessage", {
+            chat_id: chatId,
+            text:
+              `✅ បន្ថែមស្តុក <b>${r.added}</b> បន្ទាត់\n` +
+              `📦 ${esc(w.pid)} · ${esc(w.plan)}\n` +
+              `សរុបឥឡូវ: <b>${r.total}</b>`,
+            parse_mode: "HTML",
+            reply_markup: kbAdmin(),
+          });
+        } catch (e) {
+          await tg("sendMessage", {
+            chat_id: chatId,
+            text: "❌ " + e.message + "\nសាកម្តងទៀត ឬ /cancel",
+          });
+        }
+        return;
       }
-      return;
     }
     if (w.step === "prod_name") {
       w.data.name = text.slice(0, 80);
@@ -465,7 +543,7 @@ export async function handleUpdate(update) {
     }
     if (text === "💳 បង់ប្រាក់") return listPay(chatId);
     if (text === "📦 Order") return listOrd(chatId);
-    if (text === "📥 ស្តុក") return listStock(chatId);
+    if (text === "📥 ស្តុក") return listStock(chatId, fromId);
     if (text === "🎮 ផលិតផល") return listProds(chatId);
     if (text === "👥 User") return listUsers(chatId);
     if (text === "🌐 Web Admin") {
