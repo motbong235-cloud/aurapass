@@ -14,9 +14,11 @@
 <style>
 :root{--bg:#0B0F1A;--surface:#141A2B;--surface-2:#1C2540;--ink:#F2F5FF;--muted:#8E9ABB;--line:#26304D;--primary:#7C5CFF;--primary-2:#3B82F6;--accent:#FFC24D;--ok:#2DD4A0;--danger:#FF6B81;--brand:linear-gradient(135deg,#7C5CFF,#3B82F6);--font:"Kantumruy Pro",system-ui,sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6}
+html,body{margin:0;background:#0B0F1A;background:var(--bg);color:#F2F5FF;color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100%;height:100%;-webkit-text-size-adjust:100%}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
-#app{max-width:480px;margin:0 auto;min-height:100dvh;position:relative;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+#app{max-width:480px;margin:0 auto;min-height:100dvh;min-height:100vh;position:relative;padding-bottom:calc(90px + env(safe-area-inset-bottom));color:#F2F5FF}
+#app .boot{padding:48px 24px;text-align:center;color:#8E9ABB}
+#app .boot b{display:block;color:#F2F5FF;font-size:18px;margin-bottom:8px}
 .hdr{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
 .back{width:36px;height:36px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center}
 h1,h2,h3{margin:0}h1{font-size:26px;line-height:1.3}h2{font-size:20px}h3{font-size:16px}
@@ -63,7 +65,7 @@ svg{display:block}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div class="boot"><b>Zen Premium</b>កំពុងផ្ទុក…</div></div>
 <script>
 /* ============ CONFIG ============ */
 const CONFIG = {
@@ -118,6 +120,7 @@ const IC = {
 const ic = (n, s = 20, c = "currentColor", w = 2) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
 const logo = (p, s, r) => {
   const rad = r || Math.round(s * .28);
+  if (!p) return `<div class="logo" style="width:${s}px;height:${s}px;border-radius:${rad}px;background:var(--surface-2)"></div>`;
   if (p.image) return `<img class="logo" src="${p.image}" alt="" style="width:${s}px;height:${s}px;border-radius:${rad}px;object-fit:cover;background:#1C2540">`;
   return `<div class="logo" style="width:${s}px;height:${s}px;border-radius:${rad}px;background:linear-gradient(135deg,${(p.c||['#7C5CFF','#3B82F6'])[0]},${(p.c||['#7C5CFF','#3B82F6'])[1]});font-size:${s > 60 ? 26 : 16}px">${p.letter || "P"}</div>`;
 };
@@ -264,14 +267,14 @@ function done(oid) {
 }
 function copy(v) { try { navigator.clipboard.writeText(v); } catch (e) {} toast("ចម្លងរួច ✓"); haptic(); }
 function orders() {
-  return `${hdr("ការបញ្ជាទិញ", false)}<div class="pad">${state.orders.length ? state.orders.map(o => { const p = CATALOG.find(x => x.id === o.product); return `<button class="card row pc" style="flex-direction:row;gap:12px" onclick="go('#/done/${o.id}')">${logo(p, 52, 16)}<div class="grow col"><b>${p.name}</b><span class="small muted">${o.plan} · #${o.id}</span><span class="cap muted">${new Date(o.at).toLocaleDateString("en-GB")}</span></div><div class="col" style="align-items:flex-end;gap:6px"><b class="price">${money(o.amount)}</b><span class="stock"><i></i>បានដឹកជញ្ជូន</span></div></button>`; }).join("") : `<div class="muted" style="text-align:center;padding:40px">មិនទាន់មានការបញ្ជាទិញ</div>`}</div>${tabs("list")}`;
+  return `${hdr("ការបញ្ជាទិញ", false)}<div class="pad">${state.orders.length ? state.orders.map(o => { const p = CATALOG.find(x => x.id === o.product) || { name: o.product || "Order", letter: "?", c: ["#7C5CFF","#3B82F6"] }; return `<button class="card row pc" style="flex-direction:row;gap:12px" onclick="go('#/done/${o.id}')">${logo(p, 52, 16)}<div class="grow col"><b>${p.name}</b><span class="small muted">${o.plan} · #${o.id}</span><span class="cap muted">${new Date(o.at).toLocaleDateString("en-GB")}</span></div><div class="col" style="align-items:flex-end;gap:6px"><b class="price">${money(o.amount)}</b><span class="stock"><i></i>បានដឹកជញ្ជូន</span></div></button>`; }).join("") : `<div class="muted" style="text-align:center;padding:40px">មិនទាន់មានការបញ្ជាទិញ</div>`}</div>${tabs("list")}`;
 }
 function wallet() {
   const A = [1, 2, 5, 10, 20, 50];
   return `${hdr("កាបូប", false)}<div class="pad"><div class="banner"><div class="row" style="gap:10px;margin-bottom:8px"><img src="/brand/icon-64.png" width="36" height="36" style="border-radius:10px" alt=""><span class="small" style="opacity:.9">Zen Premium</span></div><div class="small" style="opacity:.85">សមតុល្យរបស់អ្នក</div><h1>${money(state.balance)}</h1><div class="cap" style="opacity:.75">Zen Premium Wallet${user.id ? " · ID " + String(user.id).slice(0, 4) + "•••" : ""}</div></div>
    <h3>បញ្ចូលលុយ</h3><div class="grid" style="grid-template-columns:repeat(3,1fr)">${A.map(a => `<button class="sel ${state.topup === a ? "on" : ""}" style="justify-content:center;padding:14px 0" onclick="state.topup=${a};render()"><b class="${state.topup === a ? "price" : ""}">$${a}</b></button>`).join("")}</div>
    <button class="mb" onclick="topup()">${ic("qr", 20, "#fff")}&nbsp; បញ្ចូល $${state.topup} តាម KHQR</button>
-   <h3>ប្រវត្តិ</h3>${state.orders.slice(0, 5).map(o => `<div class="card row" style="padding:14px"><div class="grow col"><b>${CATALOG.find(x => x.id === o.product).name} ${o.plan}</b><span class="cap muted">#${o.id}</span></div><b>-${money(o.amount)}</b></div>`).join("") || `<span class="muted small">មិនទាន់មានប្រវត្តិ</span>`}</div>${tabs("wallet")}`;
+   <h3>ប្រវត្តិ</h3>${state.orders.slice(0, 5).map(o => `<div class="card row" style="padding:14px"><div class="grow col"><b>${(CATALOG.find(x => x.id === o.product)||{}).name || o.product || 'Order'} ${o.plan || ''}</b><span class="cap muted">#${o.id}</span></div><b>-${money(o.amount)}</b></div>`).join("") || `<span class="muted small">មិនទាន់មានប្រវត្តិ</span>`}</div>${tabs("wallet")}`;
 }
 async function topup() {
   const r = await api.createPayment({ topup: state.topup, amount: state.topup });
@@ -288,7 +291,7 @@ function help() {
 
 /* ============ router ============ */
 function render() {
-  const h = location.hash || "#/"; const [, r, a] = h.split("/"); const app = $("#app"); const st = window.scrollY;
+  const h = location.hash || "#/"; const [, r, a] = h.split("/"); const app = $("#app"); if (!app) return; const st = window.scrollY;
   clearInterval(timer);
   let v;
   if (r === "p") v = product(a); else if (r === "checkout") v = checkout(a); else if (r === "pay") { v = khqr(state.cur && state.cur.order.product, state.cur ? state.cur.order.amount : 0, "order"); }
@@ -299,22 +302,65 @@ function render() {
   if (["p", "checkout", "pay", "topay"].includes(r) && h === (render.last || "")) window.scrollTo(0, st); else window.scrollTo(0, 0); render.last = h;
 }
 window.addEventListener("hashchange", render);
-if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor("#0B0F1A"); tg.setBackgroundColor("#0B0F1A"); tg.BackButton.onClick(() => history.back()); } catch (e) {} }
+
+function applyTgTheme() {
+  if (!tg) return;
+  try {
+    tg.ready();
+    tg.expand();
+    if (tg.disableVerticalSwipes) try { tg.disableVerticalSwipes(); } catch (e) {}
+    tg.setHeaderColor("#0B0F1A");
+    tg.setBackgroundColor("#0B0F1A");
+    /* Force our palette — Telegram theme can paint text black on black */
+    document.documentElement.style.setProperty("--bg", "#0B0F1A");
+    document.documentElement.style.setProperty("--ink", "#F2F5FF");
+    document.documentElement.style.setProperty("--muted", "#8E9ABB");
+    document.documentElement.style.setProperty("--surface", "#141A2B");
+    document.documentElement.style.setProperty("--surface-2", "#1C2540");
+    document.body.style.background = "#0B0F1A";
+    document.body.style.color = "#F2F5FF";
+    tg.BackButton.onClick(() => history.back());
+  } catch (e) { console.warn("[tg]", e); }
+}
+applyTgTheme();
+
+/* Paint UI immediately — never wait on network for first frame */
+try { render(); } catch (e) {
+  console.error(e);
+  const el = document.getElementById("app");
+  if (el) el.innerHTML = '<div class="boot"><b>Zen Premium</b>បញ្ហាផ្ទុក UI — សូមបិទ/បើកម្តងទៀត<br><span class="small">' + String(e.message || e) + "</span></div>";
+}
+
+async function fetchJson(url, ms) {
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = setTimeout(() => ac && ac.abort(), ms || 8000);
+  try {
+    const r = await fetch(url, { credentials: "same-origin", signal: ac ? ac.signal : undefined });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
 (async () => {
   try {
-    const r = await fetch((CONFIG.API_BASE||"") + "/api/premium/catalog");
-    const j = await r.json();
+    const j = await fetchJson((CONFIG.API_BASE || "") + "/api/premium/catalog", 8000);
     if (j.storeName) CONFIG.STORE = j.storeName;
     if (j.supportUrl) CONFIG.SUPPORT_URL = j.supportUrl;
     if (Array.isArray(j.products) && j.products.length) {
       CATALOG = j.products.map(p => ({
-        id: p.id, name: p.name, letter: p.letter || "P", image: p.image || "", c: p.c || ["#7C5CFF","#3B82F6"],
+        id: p.id, name: p.name, letter: p.letter || "P", image: p.image || "", c: p.c || ["#7C5CFF", "#3B82F6"],
         cat: p.cat || "", tag: p.tag || "", rating: p.rating || 4.8, sold: p.sold || "0",
-        stock: p.stock !== false, feat: p.feat || [], plans: p.plans || [], types: p.types || ["Private"],
+        stock: p.stock !== false, feat: Array.isArray(p.feat) ? p.feat : [], plans: Array.isArray(p.plans) && p.plans.length ? p.plans : [{ k: "1 ខែ", p: 1 }], types: p.types || ["Private"],
       }));
       const cats = [...new Set(CATALOG.map(x => x.cat).filter(Boolean))];
       if (cats.length) CATS = ["ទាំងអស់", ...cats];
     }
+  } catch (e) { console.warn("[catalog]", e); }
+  try {
     const me = await api.me();
     if (me) {
       state.balance = Number(me.balance) || 0;
@@ -326,13 +372,10 @@ if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor("#0B0F1A"); tg.setBac
         }));
         ls.set("orders", state.orders);
       }
-      if (me.needTelegram && !userId) {
-        /* opened outside Telegram */
-      }
     }
-  } catch (e) { console.warn(e); }
+  } catch (e) { console.warn("[me]", e); }
   state.ready = true;
-  render();
+  try { render(); } catch (e) { console.error(e); }
 })();
 </script>
 </body>
