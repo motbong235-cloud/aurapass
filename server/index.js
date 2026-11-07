@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import * as store from "./store.js";
 import * as abapay from "./abapay.js";
 import { startBot, webhookMiddleware } from "./bot.js";
+import { resolveUser, verifyInitData } from "./telegramAuth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -146,8 +147,16 @@ app.post("/api/premium/pay", async (req, res) => {
   if (s.maintenance) return res.status(503).json({ error: "maintenance" });
   const body = req.body || {};
   const order = body.order || body;
-  const uid = body.uid || order.uid || "guest";
-  const uname = body.uname || order.uname || "Guest";
+  const tgUser = resolveUser(req);
+  if (!tgUser) {
+    return res.status(401).json({
+      error: "telegram_required",
+      message: "សូមបើកតាម Telegram bot (Mini App) — គណនីនីមួយៗផ្សេងគ្នា",
+    });
+  }
+  const uid = tgUser.id;
+  const uname = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") || body.uname || "User";
+  store.upsertUser({ id: uid, name: uname, username: tgUser.username || "", first_name: tgUser.first_name });
   try {
     if (order.topup) {
       const amount = Number(order.amount || order.topup);
@@ -278,10 +287,32 @@ app.get("/api/premium/pay/:id", async (req, res) => {
 });
 
 app.get("/api/premium/me", (req, res) => {
-  const uid = String(req.query.uid || "");
-  const u = uid ? store.getUser(uid) : null;
-  res.json({ balance: u?.balance || 0, user: u });
+  const token = process.env.BOT_TOKEN || "";
+  const initData = req.headers["x-telegram-init-data"] || req.query.initData || "";
+  let uid = String(req.query.uid || "");
+  let name = "";
+  let username = "";
+  if (token && initData) {
+    const v = verifyInitData(initData, token);
+    if (v.ok) {
+      uid = v.user.id;
+      name = [v.user.first_name, v.user.last_name].filter(Boolean).join(" ");
+      username = v.user.username || "";
+    }
+  }
+  if (!uid || uid === "web" || uid === "guest") {
+    return res.json({ balance: 0, user: null, orders: [], needTelegram: true });
+  }
+  const u = store.upsertUser({ id: uid, name: name || "User", username, first_name: name });
+  const orders = store.listOrdersByUser(uid).slice(0, 50);
+  res.json({
+    balance: u.balance || 0,
+    user: { id: u.id, name: u.name, username: u.username, balance: u.balance, joined: u.joined },
+    orders,
+    verified: Boolean(token && initData),
+  });
 });
+
 
 app.post("/telegram/webhook", express.json(), webhookMiddleware());
 

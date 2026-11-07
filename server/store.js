@@ -436,6 +436,11 @@ export function listOrders() {
   return orders;
 }
 
+export function listOrdersByUser(uid) {
+  const id = String(uid || "");
+  return orders.filter((o) => String(o.uid) === id);
+}
+
 export function deliverOrder(id, credLine) {
   const o = orders.find((x) => x.id === id);
   if (!o) throw new Error("not_found");

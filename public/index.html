@@ -99,9 +99,16 @@ let CATALOG = [
 const tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData !== undefined ? Telegram.WebApp : null;
 const $ = (s, r = document) => r.querySelector(s);
 const money = n => CONFIG.CURRENCY + Number(n).toFixed(2);
-const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
-const state = { cat: "ទាំងអស់", q: "", sel: { plan: 0, type: 0 }, balance: ls.get("kz_bal", 5.25), orders: ls.get("kz_orders", []), topup: 5, pay: null };
-const user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || { first_name: "ភ្ញៀវ" };
+const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+const userId = tgUser ? String(tgUser.id) : "";
+const user = tgUser || { first_name: "ភ្ញៀវ", id: "" };
+/* localStorage scoped per Telegram account */
+const lsKey = (k) => (userId ? `zp_${userId}_${k}` : `zp_guest_${k}`);
+const ls = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(lsKey(k)) ?? d); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch (e) {} },
+};
+const state = { cat: "ទាំងអស់", q: "", sel: { plan: 0, type: 0 }, balance: 0, orders: [], topup: 5, pay: null, ready: false };
 const IC = {
   bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>', wallet:'<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7l2-3h12"/>', list:'<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
   help:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>', back:'<path d="m15 18-6-6 6-6"/>', check:'<path d="m5 12 5 5L20 7"/>', bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
@@ -120,12 +127,22 @@ const bar = (label, onclick, sub = "", dis = "") => `<div class="bar">${sub}<but
 /* ============ API layer (DEMO fallbacks) ============ */
 const api = {
   base() { return CONFIG.API_BASE || ""; },
-  uid() { return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || "web"; },
-  uname() { const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; return u ? (u.first_name || u.username || "User") : "Guest"; },
+  uid() { return userId || "web"; },
+  uname() {
+    if (!tgUser) return "Guest";
+    return [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") || tgUser.username || "User";
+  },
+  headers(json) {
+    const h = {};
+    if (json) h["Content-Type"] = "application/json";
+    if (tg && tg.initData) h["X-Telegram-Init-Data"] = tg.initData;
+    return h;
+  },
   async createPayment(order) {
+    if (!userId) return { error: "telegram_required", message: "សូមបើកតាម Telegram bot" };
     const r = await fetch(this.base() + "/api/premium/pay", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.headers(true),
       body: JSON.stringify({ order, uid: this.uid(), uname: this.uname(), initData: tg ? tg.initData : "" }),
     });
     const j = await r.json().catch(() => ({}));
@@ -133,21 +150,27 @@ const api = {
     return j;
   },
   async checkPayment(id) {
-    const r = await fetch(this.base() + "/api/premium/pay/" + id);
+    const r = await fetch(this.base() + "/api/premium/pay/" + id, { headers: this.headers() });
     return r.json();
   },
   async me() {
     try {
-      const r = await fetch(this.base() + "/api/premium/me?uid=" + encodeURIComponent(this.uid()));
+      const q = new URLSearchParams({ uid: this.uid() });
+      if (tg && tg.initData) q.set("initData", tg.initData);
+      const r = await fetch(this.base() + "/api/premium/me?" + q.toString(), { headers: this.headers() });
       return r.json();
-    } catch { return { balance: state.balance }; }
+    } catch { return { balance: 0, orders: [] }; }
   },
 };
 
 /* ============ views ============ */
 function home() {
   const list = CATALOG.filter(p => (state.cat === "ទាំងអស់" || p.cat === state.cat) && p.name.toLowerCase().includes(state.q.toLowerCase()));
-  return `<div class="hdr"><img class="avatar" src="/brand/icon-192.png" alt="Zen Premium" style="object-fit:cover;background:transparent;border:1px solid var(--line)"><div class="grow col"><h3>សួស្តី, ${user.first_name || ""}</h3><span class="cap muted">${CONFIG.STORE}</span></div>
+  return `<div class="hdr">${user.photo_url
+    ? `<img class="avatar" src="${user.photo_url}" alt="" style="object-fit:cover;border:1px solid var(--line)" onerror="this.src='/brand/icon-192.png'">`
+    : `<img class="avatar" src="/brand/icon-192.png" alt="Zen Premium" style="object-fit:cover;background:transparent;border:1px solid var(--line)">`}
+  <div class="grow col"><h3>សួស្តី, ${user.first_name || ""}</h3>
+  <span class="cap muted">${CONFIG.STORE}${userId ? " · @" + (user.username || userId) : " · បើកតាម Telegram"}</span></div>
   <button class="bal" onclick="go('#/wallet')">${ic("wallet", 16, "#FFC24D")}<span>${money(state.balance)}</span>${ic("plus", 14, "#9B84FF", 2.5)}</button></div>
   <div class="pad">
    <label class="search">${ic("search", 18, "#8E9ABB")}<input id="q" placeholder="ស្វែងរក CapCut, Spotify…" value="${state.q}" oninput="state.q=this.value;renderGrid()"></label>
@@ -200,6 +223,7 @@ function khqr(id, amt, kind) {
 }
 function startTimer() { clearInterval(timer); let s = state.pay_exp || 300; timer = setInterval(() => { s--; const e = $("#cd"); if (!e) return clearInterval(timer); e.textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); if (s <= 0) { clearInterval(timer); toast("QR ផុតកំណត់"); go("#/"); } }, 1000); }
 async function pay(id) {
+  if (!userId) { toast("សូមបើកតាម Telegram bot"); return; }
   const p = CATALOG.find(x => x.id === id), pl = p.plans[state.sel.plan]; haptic();
   const order = { product: p.id, plan: pl.k, type: p.types[state.sel.type], amount: pl.p };
   if (state.pay === "wallet") {
@@ -207,7 +231,7 @@ async function pay(id) {
       body: JSON.stringify({ order: { ...order, pay: "wallet" }, method: "wallet", uid: api.uid(), uname: api.uname() }) });
     const j = await r.json();
     if (j.error) { toast(j.error); return; }
-    if (j.paid) { const me = await api.me(); if (me.balance != null) { state.balance = me.balance; ls.set("kz_bal", state.balance); } return deliver(order, j); }
+    if (j.paid) { const me = await api.me(); if (me.balance != null) { state.balance = me.balance; ls.set("bal", state.balance); } return deliver(order, j); }
     toast("មិនអាចបង់ពីកាបូប"); return;
   }
   const r = await api.createPayment(order);
@@ -221,7 +245,7 @@ async function verify() {
 }
 function deliver(order, r) {
   const o = { id: "KZ-" + Math.floor(30000 + Math.random() * 9999), ...order, at: Date.now(), cred: r.credentials || null };
-  state.orders.unshift(o); ls.set("kz_orders", state.orders); haptic("heavy"); try { tg && tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} go("#/done/" + o.id);
+  state.orders.unshift(o); ls.set("orders", state.orders); haptic("heavy"); try { tg && tg.HapticFeedback.notificationOccurred("success"); } catch (e) {} go("#/done/" + o.id);
 }
 function done(oid) {
   const o = state.orders.find(x => x.id === oid), p = o && CATALOG.find(x => x.id === o.product); if (!o) return home();
@@ -251,7 +275,7 @@ async function topup() {
   state.cur = { topup: state.topup, pid: r.id }; state.pay_img = r.qr_image_url || ""; state.pay_exp = r.expires_in || 300;
   state.pay_deeplink = r.deeplink || ""; go("#/topay");
 }
-async function verifyTop() { const r = await api.checkPayment(state.cur.pid); if (r.paid) { state.balance = +(state.balance + state.cur.topup).toFixed(2); ls.set("kz_bal", state.balance); toast("បញ្ចូលលុយជោគជ័យ ✓"); haptic("heavy"); go("#/wallet"); } else toast("មិនទាន់ទទួលបានការបង់ប្រាក់"); }
+async function verifyTop() { const r = await api.checkPayment(state.cur.pid); if (r.paid) { state.balance = +(state.balance + state.cur.topup).toFixed(2); ls.set("bal", state.balance); toast("បញ្ចូលលុយជោគជ័យ ✓"); haptic("heavy"); go("#/wallet"); } else toast("មិនទាន់ទទួលបានការបង់ប្រាក់"); }
 function help() {
   const faq = [["ទទួលបានគណនីយូរប៉ុណ្ណា?", "ភាគច្រើនភ្លាមៗ បន្ទាប់ពីការទូទាត់ត្រូវបានផ្ទៀងផ្ទាត់។"], ["គណនីមានបញ្ហា តើធ្វើដូចម្តេច?", "ទាក់ទងជំនួយក្នុងរយៈពេលធានា ដើម្បីដូរគណនីថ្មី។"], ["បង់ហើយ តែមិនទាន់ទទួលបាន?", "ចុច «ពិនិត្យ» ម្តងទៀត ឬផ្ញើលេខបញ្ជាទិញមកជំនួយ។"]];
   return `${hdr("ជំនួយ", false)}<div class="pad"><a class="card row" style="padding:16px;text-decoration:none;color:inherit" href="${CONFIG.SUPPORT_URL}" target="_blank"><span class="ico">${ic("send", 22, "#9B84FF")}</span><div class="grow col"><b>Telegram ជំនួយ</b><span class="small muted">ឆ្លើយតបក្នុងពីរបីនាទី</span></div></a>
@@ -288,8 +312,22 @@ if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor("#0B0F1A"); tg.setBac
       if (cats.length) CATS = ["ទាំងអស់", ...cats];
     }
     const me = await api.me();
-    if (me && me.balance != null) { state.balance = Number(me.balance) || 0; ls.set("kz_bal", state.balance); }
+    if (me) {
+      state.balance = Number(me.balance) || 0;
+      ls.set("bal", state.balance);
+      if (Array.isArray(me.orders)) {
+        state.orders = me.orders.map(o => ({
+          id: o.id, product: o.product, plan: o.plan, type: o.type,
+          amount: o.amount, at: o.at, cred: o.cred || null, status: o.status,
+        }));
+        ls.set("orders", state.orders);
+      }
+      if (me.needTelegram && !userId) {
+        /* opened outside Telegram */
+      }
+    }
   } catch (e) { console.warn(e); }
+  state.ready = true;
   render();
 })();
 </script>
