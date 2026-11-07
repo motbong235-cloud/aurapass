@@ -187,13 +187,19 @@ adm.delete("/products/:id", adminAuth, (req, res) => {
   res.json({ ok: true });
 });
 adm.get("/stock/:pid", adminAuth, (req, res) => {
-  res.json(store.getStock(req.params.pid, req.query.plan || ""));
+  const plan = String(req.query.plan || req.body?.plan || "");
+  res.json(store.getStock(req.params.pid, plan));
 });
 adm.post("/stock/:pid", adminAuth, (req, res) => {
-  res.json(store.addStock(req.params.pid, req.query.plan || "", req.body?.lines || ""));
+  const plan = String(req.body?.plan || req.query.plan || "");
+  const lines = req.body?.lines ?? req.body?.text ?? "";
+  if (!plan) return res.status(400).json({ error: "missing_plan" });
+  if (!String(lines).trim()) return res.status(400).json({ error: "empty_stock" });
+  res.json(store.addStock(req.params.pid, plan, lines));
 });
 adm.delete("/stock/:pid", adminAuth, (req, res) => {
-  store.clearStock(req.params.pid, req.query.plan || "");
+  const plan = String(req.body?.plan || req.query.plan || "");
+  store.clearStock(req.params.pid, plan);
   res.json({ ok: true });
 });
 adm.get("/users", adminAuth, (_req, res) => res.json(store.listUsers()));
