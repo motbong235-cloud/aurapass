@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="km"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Zen Premium — Admin</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="icon" type="image/png" href="/favicon-48.png">
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -34,11 +35,91 @@ const $ = s => document.querySelector(s); const money = n => "$" + Number(n || 0
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const dt = t => t ? new Date(t).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—";
 function toast(m) { const d = document.createElement("div"); d.className = "toast"; d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 2000); }
-async function A(path, method = "GET", body) { const r = await fetch("/admin/api/" + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); if (r.status === 401 && path !== "login") { loginView(); throw new Error("auth"); } const j = await r.json(); if (j.error) { toast(j.error); throw new Error(j.error); } return j; }
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
+
+async function A(path, method = "GET", body) {
+  const headers = { "Content-Type": "application/json" };
+  if (tg && tg.initData) headers["X-Telegram-Init-Data"] = tg.initData;
+  const r = await fetch("/admin/api/" + path, {
+    method,
+    headers,
+    credentials: "same-origin",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401 && path !== "login" && path !== "login-telegram" && path !== "login-widget" && path !== "auth-config") {
+    loginView();
+    throw new Error("auth");
+  }
+  const j = await r.json().catch(() => ({}));
+  if (j.error) { toast(j.error); throw new Error(j.error); }
+  return j;
+}
 const PAGES = [["dash", "ផ្ទាំងគ្រប់គ្រង"], ["orders", "ការបញ្ជាទិញ"], ["pay", "ការទូទាត់"], ["products", "ផលិតផល"], ["stock", "ស្តុកគណនី"], ["users", "អ្នកប្រើ"], ["settings", "ការកំណត់"]];
 let page = "dash", badge = 0;
-function loginView() { $("#root").innerHTML = `<div class="login"><form class="card" onsubmit="return doLogin(event)"><div style="text-align:center;margin-bottom:8px"><img src="/brand/icon-192.png" width="64" height="64" style="border-radius:16px" alt=""></div><h3>Zen Premium Admin</h3><label>ពាក្យសម្ងាត់</label><input id="pw" type="password" autofocus><div style="height:14px"></div><button class="btn" style="width:100%">ចូល</button></form></div>`; }
-async function doLogin(e) { e.preventDefault(); try { await A("login", "POST", { password: $("#pw").value }); shell(); } catch (x) {} return false; }
+function loginView() {
+  $("#root").innerHTML = `<div class="login"><div class="card" style="text-align:center">
+    <img src="/brand/icon-192.png" width="72" height="72" style="border-radius:18px;margin-bottom:10px" alt="">
+    <h3>Zen Premium Admin</h3>
+    <p class="muted sm" style="margin:8px 0 16px">ចូលបានតែ <b>Telegram Admin</b> (ADMIN_ID) — មិនត្រូវពាក្យសម្ងាត់</p>
+    <div id="tg-status" class="muted sm" style="margin-bottom:12px">កំពុងពិនិត្យ Telegram…</div>
+    <button class="btn" id="btn-tg" style="width:100%;display:none" onclick="tryTgLogin()">ចូលជាមួយ Telegram</button>
+    <div id="widget-box" style="margin-top:14px;min-height:40px"></div>
+    <p class="muted sm" style="margin-top:16px">ឬបើកពី bot → <b>🌐 Web Admin</b> (Mini App)</p>
+  </div></div>`;
+  bootLogin();
+}
+async function tryTgLogin() {
+  if (!tg || !tg.initData) {
+    toast("បើក Admin តាម Telegram bot");
+    return;
+  }
+  try {
+    await A("login-telegram", "POST", { initData: tg.initData });
+    shell();
+  } catch (x) {}
+}
+window.onTelegramAuth = async function (user) {
+  try {
+    await A("login-widget", "POST", user);
+    shell();
+  } catch (x) {}
+};
+async function bootLogin() {
+  const st = document.getElementById("tg-status");
+  const btn = document.getElementById("btn-tg");
+  // 1) Already inside Telegram WebApp as admin
+  if (tg && tg.initData) {
+    st.textContent = "រកឃើញ Telegram — កំពុងចូល…";
+    try {
+      await A("login-telegram", "POST", { initData: tg.initData });
+      shell();
+      return;
+    } catch (e) {
+      st.textContent = "គណនីនេះមិនមែន Admin (ពិនិត្យ ADMIN_ID)";
+      btn.style.display = "block";
+    }
+  } else {
+    st.textContent = "បើកក្នុង browser — Login with Telegram";
+  }
+  // 2) Telegram Login Widget
+  try {
+    const cfg = await fetch("/admin/api/auth-config").then((r) => r.json());
+    if (cfg.botUsername) {
+      const box = document.getElementById("widget-box");
+      const s = document.createElement("script");
+      s.src = "https://telegram.org/js/telegram-widget.js?22";
+      s.setAttribute("data-telegram-login", cfg.botUsername);
+      s.setAttribute("data-size", "large");
+      s.setAttribute("data-radius", "12");
+      s.setAttribute("data-onauth", "onTelegramAuth(user)");
+      s.setAttribute("data-request-access", "write");
+      box.appendChild(s);
+    } else {
+      st.textContent = (st.textContent || "") + " · កំណត់ BOT_USERNAME លើ Render";
+    }
+  } catch (e) {}
+}
 async function shell() {
   try { const st = await A("stats"); badge = st.pendingPay + st.processing; } catch (e) { return; }
   $("#root").innerHTML = `<div class="app"><aside><div class="brand"><img class="logo" src="/brand/icon-64.png" alt="Z" style="width:36px;height:36px;border-radius:12px;object-fit:cover;padding:0">Zen Premium Admin</div>${PAGES.map(([k, l]) => `<a class="${k === page ? "on" : ""}" onclick="go('${k}')">${l}${k === "pay" && badge ? `<span class="n">${badge}</span>` : ""}</a>`).join("")}<div class="sp"></div><a onclick="out()">ចាកចេញ</a></aside><main id="main"></main></div>`;

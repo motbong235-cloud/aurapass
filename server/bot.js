@@ -221,10 +221,24 @@ async function listProds(chatId) {
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
-        [{ text: "🌐 កែនៅ Web Admin", url: `${web()}/admin` }],
+        [{ text: "➕ បង្កើតផលិតផល", callback_data: "a:newp" }],
+        [{ text: "🌐 Web Admin", web_app: { url: `${web()}/admin` } }],
         [{ text: "« ត្រឡប់", callback_data: "a:home" }],
       ],
     },
+  });
+}
+
+async function startNewProduct(chatId, fromId) {
+  wiz.set(String(fromId), { step: "prod_name", data: {} });
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text:
+      "<b>➕ ផលិតផលថ្មី</b>\n\n" +
+      "១) ផ្ញើ <b>ឈ្មោះ</b> (ឧ. CapCut Pro)\n\n" +
+      "/cancel បោះបង់",
+    parse_mode: "HTML",
+    reply_markup: kbAdmin(),
   });
 }
 
@@ -404,6 +418,44 @@ export async function handleUpdate(update) {
       }
       return;
     }
+    if (w.step === "prod_name") {
+      w.data.name = text.slice(0, 80);
+      w.step = "prod_plans";
+      wiz.set(String(fromId), w);
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text:
+          "២) ផ្ញើ <b>កញ្ចប់</b> មួយបន្ទាត់មួយ\n" +
+          "ទម្រង់: <code>ឈ្មោះកញ្ចប់ | តម្លៃ</code>\n" +
+          "ឧ:\n<code>1 ខែ | 2.5\n3 ខែ | 6.5\n12 ខែ | 22</code>",
+        parse_mode: "HTML",
+      });
+      return;
+    }
+    if (w.step === "prod_plans") {
+      const plans = text.split("\n").map((line) => {
+        const [k, p] = line.split("|").map((s) => s.trim());
+        return { k: k || "1 ខែ", p: Number(p) || 0 };
+      }).filter((x) => x.k);
+      if (!plans.length) {
+        await tg("sendMessage", { chat_id: chatId, text: "ទម្រង់ខុស — សាកម្តងទៀត" });
+        return;
+      }
+      w.data.plans = plans;
+      w.step = "prod_delivery";
+      wiz.set(String(fromId), w);
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "៣) ប្រភេទដឹកជញ្ជូន?",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "⚡ Auto (ស្តុក email:pass)", callback_data: "a:pdel:auto" }],
+            [{ text: "✋ Manual (admin ផ្ញើ)", callback_data: "a:pdel:manual" }],
+          ],
+        },
+      });
+      return;
+    }
   }
 
   // reply keyboard routes
@@ -419,8 +471,10 @@ export async function handleUpdate(update) {
     if (text === "🌐 Web Admin") {
       await tg("sendMessage", {
         chat_id: chatId,
-        text: `Admin web:\n${web()}/admin`,
-        reply_markup: { inline_keyboard: [[{ text: "បើក Web Admin", url: `${web()}/admin` }]] },
+        text: "បើក Web Admin ក្នុង Telegram (ចងចាំ Admin ដោយស្វ័យ — គ្មាន password)",
+        reply_markup: {
+          inline_keyboard: [[{ text: "🌐 បើក Web Admin", web_app: { url: `${web()}/admin` } }]],
+        },
       });
       return;
     }

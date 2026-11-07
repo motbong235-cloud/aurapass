@@ -12,8 +12,32 @@ import { resolveUser, verifyInitData } from "./telegramAuth.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const PORT = Number(process.env.PORT) || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "zenpremium-admin-change-me";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ""; // optional fallback only
+const ADMIN_IDS = new Set(
+  String(process.env.ADMIN_ID || "")
+    .split(/[,;\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
 const isProd = process.env.NODE_ENV === "production";
+const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
+const BOT_USERNAME = (process.env.BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME || "").replace(/^@/, "").trim();
+
+function isTelegramAdminId(id) {
+  return id && ADMIN_IDS.has(String(id));
+}
+
+function issueAdminCookie(res, meta = {}) {
+  const token = store.createSession();
+  res.cookie("aura_admin", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProd,
+    maxAge: 30 * 86400000, // remember 30 days
+  });
+  return token;
+}
+
 
 const app = express();
 app.set("trust proxy", 1);
@@ -37,28 +61,101 @@ function safeEq(a, b) {
 
 function adminAuth(req, res, next) {
   const token = req.cookies?.aura_admin;
-  if (!store.validSession(token)) return res.status(401).json({ error: "unauthorized" });
-  next();
+  if (store.validSession(token)) return next();
+  // Accept live Telegram initData on each request (Mini App admin)
+  const initData = req.headers["x-telegram-init-data"] || "";
+  if (BOT_TOKEN && initData) {
+    const v = verifyInitData(initData, BOT_TOKEN);
+    if (v?.user?.id && isTelegramAdminId(v.user.id)) {
+      req.adminTg = v.user;
+      return next();
+    }
+  }
+  return res.status(401).json({ error: "unauthorized" });
 }
 
 /* ---------- Admin API ---------- */
 const adm = express.Router();
+
+/** Who can admin + bot username for Login Widget */
+adm.get("/auth-config", (_req, res) => {
+  res.json({
+    botUsername: BOT_USERNAME || null,
+    telegramOnly: true,
+    hasAdmins: ADMIN_IDS.size > 0,
+  });
+});
+
+/** Login via Telegram WebApp initData (preferred) */
+adm.post("/login-telegram", (req, res) => {
+  const initData = String(req.body?.initData || req.headers["x-telegram-init-data"] || "");
+  if (!BOT_TOKEN) return res.status(503).json({ error: "BOT_TOKEN not set" });
+  if (!initData) return res.status(401).json({ error: "no_init_data" });
+  const v = verifyInitData(initData, BOT_TOKEN);
+  if (!v?.user?.id) return res.status(401).json({ error: "invalid_telegram" });
+  if (!isTelegramAdminId(v.user.id)) {
+    return res.status(403).json({ error: "មិនមែន Telegram admin — ត្រូវ ADMIN_ID តែប៉ុណ្ណោះ" });
+  }
+  issueAdminCookie(res, { tg: v.user.id });
+  res.json({
+    ok: true,
+    admin: { id: v.user.id, name: v.user.first_name || "Admin", username: v.user.username || "" },
+  });
+});
+
+/**
+ * Login via Telegram Login Widget payload
+ * (user opens /admin in browser, clicks Login with Telegram)
+ */
+adm.post("/login-widget", (req, res) => {
+  const body = req.body || {};
+  const id = String(body.id || "");
+  if (!BOT_TOKEN) return res.status(503).json({ error: "BOT_TOKEN not set" });
+  if (!id) return res.status(401).json({ error: "no_user" });
+  // Verify widget hash
+  const check = { ...body };
+  const hash = String(check.hash || "");
+  delete check.hash;
+  const dataCheck = Object.keys(check)
+    .sort()
+    .map((k) => `${k}=${check[k]}`)
+    .join("\n");
+  const secret = crypto.createHash("sha256").update(BOT_TOKEN).digest();
+  const hmac = crypto.createHmac("sha256", secret).update(dataCheck).digest("hex");
+  if (hmac !== hash) return res.status(401).json({ error: "invalid_widget" });
+  const authDate = Number(body.auth_date || 0);
+  if (authDate && Date.now() / 1000 - authDate > 86400) {
+    return res.status(401).json({ error: "widget_expired" });
+  }
+  if (!isTelegramAdminId(id)) {
+    return res.status(403).json({ error: "មិនមែន Telegram admin" });
+  }
+  issueAdminCookie(res, { tg: id });
+  res.json({
+    ok: true,
+    admin: { id, name: body.first_name || "Admin", username: body.username || "" },
+  });
+});
+
+/** Optional password fallback only if ADMIN_PASSWORD env is set */
 adm.post("/login", (req, res) => {
+  if (!ADMIN_PASSWORD) {
+    return res.status(400).json({ error: "ប្រើ Login with Telegram — មិនមាន password" });
+  }
   const pw = String(req.body?.password || "");
   if (!safeEq(pw, ADMIN_PASSWORD)) return res.status(401).json({ error: "ពាក្យសម្ងាត់ខុស" });
-  const token = store.createSession();
-  res.cookie("aura_admin", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProd,
-    maxAge: 7 * 86400000,
-  });
-  res.json({ ok: true });
+  issueAdminCookie(res);
+  res.json({ ok: true, mode: "password" });
 });
+
 adm.post("/logout", (req, res) => {
   store.destroySession(req.cookies?.aura_admin);
   res.clearCookie("aura_admin");
   res.json({ ok: true });
+});
+
+adm.get("/me", adminAuth, (req, res) => {
+  res.json({ ok: true, admin: req.adminTg || true });
 });
 adm.get("/stats", adminAuth, (_req, res) => res.json(store.stats()));
 adm.get("/orders", adminAuth, (_req, res) => res.json(store.listOrders()));
@@ -383,8 +480,10 @@ setInterval(async () => {
 
 app.listen(PORT, () => {
   console.log(`Zen Premium on :${PORT} | ABA auto-pay: ${abapay.isAbaReady() ? "ON" : "OFF (manual KHQR)"}`);
-  if (ADMIN_PASSWORD === "zenpremium-admin-change-me") {
-    console.warn("[warn] Set ADMIN_PASSWORD env in production");
+  if (!ADMIN_IDS.size) {
+    console.warn("[warn] Set ADMIN_ID (Telegram numeric id) — admin web/bot require it");
   }
+  if (!BOT_TOKEN) console.warn("[warn] BOT_TOKEN missing");
+
   startBot().catch((e) => console.error("[bot start]", e.message));
 });
