@@ -262,7 +262,7 @@ async function stockView(pid, plan) {
 }
 async function clearStock(pid, plan) {
   return clearStockBtn({ getAttribute: (k) => k === "data-pid" ? pid : plan });
-}?plan=${encodeURIComponent(plan)}`, "DELETE"); close(); shell(); } }
+}
 async function delProd(id) { if (confirm("លុបផលិតផលនេះ?")) { await A("products/" + id, "DELETE"); shell(); } }
 function prodModal(id) {
   const p = (id && window._ps.find(x => x.id === id)) || { name: "", letter: "", image: "", c: ["#7C5CFF", "#3B82F6"], cat: "", tag: "", rating: 4.8, sold: "0", enabled: true, delivery: "auto", feat: [], types: ["Private"], plans: [{ k: "1 ខែ", p: 1 }] };
