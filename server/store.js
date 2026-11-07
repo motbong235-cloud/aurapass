@@ -209,6 +209,7 @@ export function saveProduct(id, body) {
     name: String(body.name || "").trim() || "Product",
     letter: String(body.letter || "P").slice(0, 2),
     c: Array.isArray(body.c) && body.c.length >= 2 ? body.c : ["#7C5CFF", "#3B82F6"],
+    image: String(body.image || "").trim().slice(0, 500),
     cat: String(body.cat || ""),
     tag: String(body.tag || ""),
     rating: Number(body.rating) || 4.8,

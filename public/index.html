@@ -116,7 +116,11 @@ const IC = {
   qr:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14v7h-3"/>', copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>', star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>'
 };
 const ic = (n, s = 20, c = "currentColor", w = 2) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
-const logo = (p, s, r) => `<div class="logo" style="width:${s}px;height:${s}px;border-radius:${r || Math.round(s * .28)}px;background:linear-gradient(135deg,${p.c[0]},${p.c[1]});font-size:${s > 60 ? 26 : 16}px">${p.letter}</div>`;
+const logo = (p, s, r) => {
+  const rad = r || Math.round(s * .28);
+  if (p.image) return `<img class="logo" src="${p.image}" alt="" style="width:${s}px;height:${s}px;border-radius:${rad}px;object-fit:cover;background:#1C2540">`;
+  return `<div class="logo" style="width:${s}px;height:${s}px;border-radius:${rad}px;background:linear-gradient(135deg,${(p.c||['#7C5CFF','#3B82F6'])[0]},${(p.c||['#7C5CFF','#3B82F6'])[1]});font-size:${s > 60 ? 26 : 16}px">${p.letter || "P"}</div>`;
+};
 const haptic = (t = "light") => { try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(t); } catch (e) {} };
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 1800); }
 const go = h => { location.hash = h; };
@@ -304,7 +308,7 @@ if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor("#0B0F1A"); tg.setBac
     if (j.supportUrl) CONFIG.SUPPORT_URL = j.supportUrl;
     if (Array.isArray(j.products) && j.products.length) {
       CATALOG = j.products.map(p => ({
-        id: p.id, name: p.name, letter: p.letter || "P", c: p.c || ["#7C5CFF","#3B82F6"],
+        id: p.id, name: p.name, letter: p.letter || "P", image: p.image || "", c: p.c || ["#7C5CFF","#3B82F6"],
         cat: p.cat || "", tag: p.tag || "", rating: p.rating || 4.8, sold: p.sold || "0",
         stock: p.stock !== false, feat: p.feat || [], plans: p.plans || [], types: p.types || ["Private"],
       }));

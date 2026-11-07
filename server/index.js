@@ -1,6 +1,7 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import * as store from "./store.js";
@@ -17,7 +18,7 @@ const isProd = process.env.NODE_ENV === "production";
 const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "4mb" }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
@@ -64,6 +65,25 @@ adm.get("/orders", adminAuth, (_req, res) => res.json(store.listOrders()));
 adm.get("/payments", adminAuth, (_req, res) => res.json(store.listPayments()));
 adm.get("/products", adminAuth, (_req, res) => res.json(store.listProductsAdmin()));
 adm.post("/products", adminAuth, (req, res) => res.json(store.saveProduct(null, req.body || {})));
+adm.post("/upload-image", adminAuth, (req, res) => {
+  try {
+    const dataUrl = String(req.body?.data || "");
+    const m = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/i);
+    if (!m) return res.status(400).json({ error: "invalid_image" });
+    const ext = m[1].toLowerCase() === "jpeg" ? "jpg" : m[1].toLowerCase();
+    const buf = Buffer.from(m[2], "base64");
+    if (buf.length > 2.5 * 1024 * 1024) return res.status(400).json({ error: "image_too_large" });
+    const dir = path.join(process.env.DATA_DIR || path.join(ROOT, "data"), "uploads");
+    fs.mkdirSync(dir, { recursive: true });
+    const name = `p_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}.${ext}`;
+    fs.writeFileSync(path.join(dir, name), buf);
+    const url = "/uploads/" + name;
+    res.json({ ok: true, url });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 adm.put("/products/:id", adminAuth, (req, res) => res.json(store.saveProduct(req.params.id, req.body || {})));
 adm.delete("/products/:id", adminAuth, (req, res) => {
   store.deleteProduct(req.params.id);
@@ -331,7 +351,11 @@ app.get("/api/premium/aba-diag", async (_req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, name: "Zen Premium", aba: abapay.isAbaReady() }));
 
+const uploadsDir = path.join(process.env.DATA_DIR || path.join(ROOT, "data"), "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(uploadsDir));
 app.use(express.static(path.join(ROOT, "public"), { index: false }));
+
 
 app.get("/admin", (_req, res) => {
   res.sendFile(path.join(ROOT, "public", "admin.html"));
